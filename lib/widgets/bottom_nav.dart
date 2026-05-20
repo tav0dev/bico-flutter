@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 
 enum NavTab { home, agenda, inbox, clients }
 
-class BicoBottomNav extends StatelessWidget {
+class BiccoBottomNav extends StatelessWidget {
   final NavTab active;
   final ValueChanged<NavTab>? onTap;
 
-  const BicoBottomNav({super.key, required this.active, this.onTap});
+  const BiccoBottomNav({super.key, required this.active, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final notifier = context.watch<BicoNotifier>();
+    final notifier = context.watch<BiccoNotifier>();
     final tokens = notifier.tokens;
 
     const items = [

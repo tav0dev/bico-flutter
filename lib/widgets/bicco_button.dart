@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 
 enum BtnVariant { primary, secondary, ghost, ai, danger }
 
 enum BtnSize { sm, md, lg }
 
-class BicoButton extends StatelessWidget {
+class BiccoButton extends StatelessWidget {
   final Widget child;
   final BtnVariant variant;
   final BtnSize size;
   final bool full;
   final VoidCallback? onPressed;
 
-  const BicoButton({
+  const BiccoButton({
     super.key,
     required this.child,
     this.variant = BtnVariant.primary,
@@ -24,7 +24,7 @@ class BicoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.watch<BicoNotifier>().tokens;
+    final tokens = context.watch<BiccoNotifier>().tokens;
 
     Color bg, fg;
     Color borderColor;

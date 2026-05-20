@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/avatar.dart';
@@ -23,7 +23,7 @@ class ClientsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.watch<BicoNotifier>().tokens;
+    final tokens = context.watch<BiccoNotifier>().tokens;
 
     final today = _clients.where((c) => c.recent).toList();
     final thisWeek = _clients.where((c) => !c.recent && !c.paused).take(4).toList();
@@ -35,7 +35,7 @@ class ClientsScreen extends StatelessWidget {
         children: [
           SafeArea(
             bottom: false,
-            child: BicoTopBar(
+            child: BiccoTopBar(
               title: 'Clientes',
               large: true,
               trailing: Container(

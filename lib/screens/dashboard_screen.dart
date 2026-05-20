@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
-import '../widgets/bico_card.dart';
+import '../providers/bicco_provider.dart';
+import '../widgets/bicco_card.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/avatar.dart';
 import '../widgets/ai_sparkle.dart';
-import '../widgets/bico_button.dart';
+import '../widgets/bicco_button.dart';
 
 class DashboardScreen extends StatelessWidget {
   final ValueChanged<NavTab>? onNavTap;
@@ -15,7 +15,7 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final notifier = context.watch<BicoNotifier>();
+    final notifier = context.watch<BiccoNotifier>();
     final tokens = notifier.tokens;
 
     return Scaffold(
@@ -24,10 +24,10 @@ class DashboardScreen extends StatelessWidget {
         children: [
           SafeArea(
             bottom: false,
-            child: BicoTopBar(
+            child: BiccoTopBar(
               title: 'Olá, Marina',
               subtitle: 'Quarta, 6 de maio',
-              leading: const BicoAvatar(name: 'Marina Silva', size: 40),
+              leading: const BiccoAvatar(name: 'Marina Silva', size: 40),
               trailing: Stack(
                 children: [
                   IconButton(
@@ -56,7 +56,7 @@ class DashboardScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
               children: [
                 // Today summary card
-                BicoCard(
+                BiccoCard(
                   padding: EdgeInsets.zero,
                   child: Column(
                     children: [
@@ -161,7 +161,7 @@ class DashboardScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                BicoCard(
+                BiccoCard(
                   padding: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(14),
@@ -277,14 +277,14 @@ class DashboardScreen extends StatelessWidget {
                       const SizedBox(height: 14),
                       Row(
                         children: [
-                          BicoButton(
+                          BiccoButton(
                             variant: BtnVariant.ai,
                             size: BtnSize.sm,
                             onPressed: () {},
                             child: const Text('Enviar lembrete'),
                           ),
                           const SizedBox(width: 8),
-                          BicoButton(
+                          BiccoButton(
                             variant: BtnVariant.ghost,
                             size: BtnSize.sm,
                             onPressed: () {},
@@ -331,7 +331,7 @@ class DashboardScreen extends StatelessWidget {
           ),
           SafeArea(
             top: false,
-            child: BicoBottomNav(
+            child: BiccoBottomNav(
               active: NavTab.home,
               onTap: onNavTap,
             ),
@@ -351,7 +351,7 @@ class _Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.watch<BicoNotifier>().tokens;
+    final tokens = context.watch<BiccoNotifier>().tokens;
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,7 +393,7 @@ class _QuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.watch<BicoNotifier>().tokens;
+    final tokens = context.watch<BiccoNotifier>().tokens;
     return GestureDetector(
       onTap: onTap,
       child: Container(

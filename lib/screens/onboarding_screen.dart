@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 import '../widgets/tuco_slot.dart';
-import '../widgets/bico_button.dart';
+import '../widgets/bicco_button.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});

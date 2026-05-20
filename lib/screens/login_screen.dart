@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 import '../widgets/tuco_slot.dart';
-import '../widgets/bico_button.dart';
-import '../widgets/bico_field.dart';
+import '../widgets/bicco_button.dart';
+import '../widgets/bicco_field.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Center(child: TucoSlot(size: 84)),
               const SizedBox(height: 18),
               Text(
-                'Bem-vindo ao Bico',
+                'Bem-vindo ao Bicco',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
@@ -51,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'O assistente do prestador de serviço autônomo',
+                'O seu corre, mais inteligente',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
@@ -170,6 +170,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: BicoButton(
                       variant: BtnVariant.secondary,
                       full: true,
+                      onPressed: () async {
+                        await context.read<BicoNotifier>().signInWithGoogle();
+                        // O redirecionamento é tratado pelo listener de Auth no Provider
+                      },
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -185,10 +189,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: BicoButton(
                       variant: BtnVariant.secondary,
                       full: true,
+                      onPressed: () {},
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.apple, size: 18, color: tokens.text),
+                          _AppleIcon(),
                           const SizedBox(width: 8),
                           const Text('Apple'),
                         ],
@@ -280,50 +285,126 @@ class _GoogleIcon extends StatelessWidget {
   }
 }
 
-class _GooglePainter extends CustomPainter {
+class _AppleIcon extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: CustomPaint(painter: _ApplePainter()),
+    );
+  }
+}
+
+class _ApplePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final s = size.width;
-    // Blue
-    canvas.drawArc(
-      Rect.fromLTWH(0, 0, s, s),
-      -0.52,
-      3.14,
-      false,
-      Paint()..color = const Color(0xFF4285F4)..style = PaintingStyle.fill,
-    );
-    // Green
-    canvas.drawArc(
-      Rect.fromLTWH(0, 0, s, s),
-      2.62,
-      1.05,
-      false,
-      Paint()..color = const Color(0xFF34A853)..style = PaintingStyle.fill,
-    );
-    // Yellow
-    canvas.drawArc(
-      Rect.fromLTWH(0, 0, s, s),
-      3.67,
-      1.05,
-      false,
-      Paint()..color = const Color(0xFFFBBC05)..style = PaintingStyle.fill,
-    );
-    // Red
-    canvas.drawArc(
-      Rect.fromLTWH(0, 0, s, s),
-      4.72,
-      1.05,
-      false,
-      Paint()..color = const Color(0xFFEA4335)..style = PaintingStyle.fill,
-    );
-    // White center
-    canvas.drawCircle(
-      Offset(s / 2, s / 2),
-      s * 0.35,
-      Paint()..color = Colors.white,
-    );
+    final Paint paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    // ViewBox original do SVG: -52.01 0 560.035 560.035
+    // Largura total: ~560, Altura total: ~560
+    final double scale = size.width / 560.035;
+    canvas.scale(scale);
+    canvas.translate(52.01, 0); // Ajuste do offset X do viewBox
+
+    final Path path = Path();
+    // Corpo da maçã
+    path.moveTo(380.844, 297.529);
+    path.cubicTo(381.631, 382.281, 455.193, 410.484, 456.008, 410.843);
+    path.cubicTo(455.386, 412.831, 444.254, 451.034, 417.252, 490.495);
+    path.cubicTo(393.909, 524.612, 369.684, 558.602, 331.521, 559.306);
+    path.cubicTo(294.022, 559.997, 281.964, 537.07, 239.092, 537.07);
+    path.cubicTo(196.233, 537.07, 182.836, 558.603, 147.339, 559.998);
+    path.cubicTo(110.502, 561.393, 82.45, 523.107, 58.915, 489.115);
+    path.cubicTo(10.822, 419.585, -25.931, 292.64, 23.419, 206.95);
+    path.cubicTo(47.935, 164.396, 91.747, 137.449, 139.301, 136.758);
+    path.cubicTo(175.474, 136.068, 209.616, 161.094, 231.73, 161.094);
+    path.cubicTo(253.83, 161.094, 295.32, 130.998, 338.938, 135.418);
+    path.cubicTo(357.198, 136.178, 408.455, 142.794, 441.367, 190.97);
+    path.cubicTo(438.715, 192.614, 380.208, 226.678, 380.844, 297.529);
+    
+    // Folha
+    path.moveTo(310.369, 89.418);
+    path.cubicTo(329.926, 65.745, 343.089, 32.79, 339.498, 0);
+    path.cubicTo(311.308, 1.133, 277.22, 18.785, 257.0, 42.445);
+    path.cubicTo(238.879, 63.397, 223.009, 96.932, 227.291, 130.07);
+    path.cubicTo(258.712, 132.501, 290.811, 112.496, 310.369, 89.418);
+    
+    canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(_GooglePainter _) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _GooglePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()..style = PaintingStyle.fill;
+    
+    // ViewBox original do seu novo SVG: -3 0 262 262
+    final double scale = size.width / 262;
+    canvas.scale(scale);
+    canvas.translate(3, 0);
+
+    // Blue segment
+    final Path bluePath = Path()
+      ..moveTo(255.878, 133.451)
+      ..cubicTo(255.878, 122.717, 255.007, 114.884, 253.122, 106.761)
+      ..lineTo(130.55, 106.761)
+      ..lineTo(130.55, 155.209)
+      ..lineTo(202.497, 155.209)
+      ..cubicTo(201.047, 167.249, 193.214, 185.381, 175.807, 197.565)
+      ..lineTo(175.563, 199.187)
+      ..lineTo(214.318, 229.21)
+      ..lineTo(217.003, 229.478)
+      ..cubicTo(241.662, 206.704, 255.878, 173.196, 255.878, 133.451)
+      ..close();
+    canvas.drawPath(bluePath, paint..color = const Color(0xFF4285F4));
+
+    // Green segment
+    final Path greenPath = Path()
+      ..moveTo(130.55, 261.1)
+      ..cubicTo(165.798, 261.1, 195.389, 249.495, 217.003, 229.478)
+      ..lineTo(175.807, 197.565)
+      ..cubicTo(164.783, 205.253, 149.987, 210.62, 130.55, 210.62)
+      ..cubicTo(96.027, 210.62, 66.726, 187.847, 56.281, 156.371)
+      ..lineTo(54.75, 156.501)
+      ..lineTo(14.452, 187.688)
+      ..lineTo(13.925, 189.153)
+      ..cubicTo(35.393, 231.798, 79.49, 261.1, 130.55, 261.1)
+      ..close();
+    canvas.drawPath(greenPath, paint..color = const Color(0xFF34A853));
+
+    // Yellow segment
+    final Path yellowPath = Path()
+      ..moveTo(56.281, 156.371)
+      ..cubicTo(53.525, 148.248, 51.93, 139.544, 51.93, 130.551)
+      ..cubicTo(51.93, 121.557, 53.525, 112.854, 56.136, 104.731)
+      ..lineTo(56.063, 103.001)
+      ..lineTo(15.26, 71.312)
+      ..lineTo(13.925, 71.947)
+      ..cubicTo(5.077, 89.644, 0, 109.517, 0, 130.551)
+      ..cubicTo(0, 151.585, 5.077, 171.458, 13.925, 189.153)
+      ..lineTo(56.281, 156.371)
+      ..close();
+    canvas.drawPath(yellowPath, paint..color = const Color(0xFFFBBC05));
+
+    // Red segment
+    final Path redPath = Path()
+      ..moveTo(130.55, 50.479)
+      ..cubicTo(155.064, 50.479, 171.6, 61.068, 181.029, 69.917)
+      ..lineTo(217.873, 33.943)
+      ..cubicTo(195.245, 12.91, 165.798, 0, 130.55, 0)
+      ..cubicTo(79.49, 0, 35.393, 29.301, 13.925, 71.947)
+      ..lineTo(56.136, 104.731)
+      ..cubicTo(66.726, 73.254, 96.027, 50.479, 130.55, 50.479)
+      ..close();
+    canvas.drawPath(redPath, paint..color = const Color(0xFFEB4335));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

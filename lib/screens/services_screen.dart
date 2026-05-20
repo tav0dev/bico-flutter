@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/bottom_nav.dart';
-import '../widgets/bico_card.dart';
+import '../widgets/bicco_card.dart';
 import '../widgets/pill.dart';
 import '../widgets/toggle.dart';
 

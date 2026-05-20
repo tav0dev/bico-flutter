@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 
-class BicoField extends StatelessWidget {
+class BiccoField extends StatelessWidget {
   final String? label;
   final String? placeholder;
   final bool obscureText;
@@ -13,7 +13,7 @@ class BicoField extends StatelessWidget {
   final String? error;
   final String? hint;
 
-  const BicoField({
+  const BiccoField({
     super.key,
     this.label,
     this.placeholder,
@@ -28,7 +28,7 @@ class BicoField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.watch<BicoNotifier>().tokens;
+    final tokens = context.watch<BiccoNotifier>().tokens;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

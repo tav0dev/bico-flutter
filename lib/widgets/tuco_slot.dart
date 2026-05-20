@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 import '../theme/tokens.dart';
 
 class TucoSlot extends StatelessWidget {
@@ -11,7 +11,7 @@ class TucoSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final notifier = context.watch<BicoNotifier>();
+    final notifier = context.watch<BiccoNotifier>();
     final tokens = notifier.tokens;
     final effectiveMode = mode ?? notifier.tucoMode;
 
@@ -62,7 +62,7 @@ class TucoSlot extends StatelessWidget {
             height: size * 0.38,
             child: Container(
               decoration: BoxDecoration(
-                color: BicoTokens.light.navy,
+                color: BiccoTokens.light.navy,
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(size / 2),
                   bottomRight: Radius.circular(size / 2),
@@ -87,7 +87,7 @@ class TucoSlot extends StatelessWidget {
                   height: size * 0.13 * 0.6,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: BicoTokens.light.navy,
+                    color: BiccoTokens.light.navy,
                   ),
                 ),
               ),

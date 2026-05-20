@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 
-class BicoPill extends StatelessWidget {
+class BiccoPill extends StatelessWidget {
   final String text;
   final String color;
   final bool soft;
   final String size;
 
-  const BicoPill({
+  const BiccoPill({
     super.key,
     required this.text,
     this.color = 'green',
@@ -18,7 +18,7 @@ class BicoPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.watch<BicoNotifier>().tokens;
+    final tokens = context.watch<BiccoNotifier>().tokens;
 
     Color fg, bg;
     switch (color) {

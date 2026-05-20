@@ -1,5 +1,5 @@
-name: bico_flutter
-description: "A new Flutter project."
+name: bicco_app
+description: "Bicco: O assistente inteligente para o seu corre."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -33,6 +33,12 @@ dependencies:
   cupertino_icons: ^1.0.8
   provider: ^6.1.2
   google_fonts: ^6.2.1
+  google_sign_in: ^6.2.1
+  googleapis: ^13.2.0
+  googleapis_auth: ^1.6.0
+  extension_google_sign_in_as_googleapis_auth: ^2.0.1
+  intl: ^0.20.2
+  supabase_flutter: ^2.12.4
 
 dev_dependencies:
   flutter_test:

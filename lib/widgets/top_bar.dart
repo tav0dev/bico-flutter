@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bico_provider.dart';
+import '../providers/bicco_provider.dart';
 
-class BicoTopBar extends StatelessWidget {
+class BiccoTopBar extends StatelessWidget {
   final String title;
   final Widget? leading;
   final Widget? trailing;
   final String? subtitle;
   final bool large;
 
-  const BicoTopBar({
+  const BiccoTopBar({
     super.key,
     required this.title,
     this.leading,
@@ -20,7 +20,7 @@ class BicoTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.watch<BicoNotifier>().tokens;
+    final tokens = context.watch<BiccoNotifier>().tokens;
     return Container(
       color: tokens.bg,
       padding: EdgeInsets.symmetric(

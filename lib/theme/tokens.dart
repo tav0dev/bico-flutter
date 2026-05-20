@@ -1,6 +1,6 @@
 import 'package:flutter/painting.dart';
 
-class BicoTokens {
+class BiccoTokens {
   final Color green;
   final Color greenDark;
   final Color greenSoft;
@@ -19,7 +19,7 @@ class BicoTokens {
   final Color red;
   final Color redSoft;
 
-  const BicoTokens({
+  const BiccoTokens({
     required this.green,
     required this.greenDark,
     required this.greenSoft,
@@ -39,7 +39,7 @@ class BicoTokens {
     required this.redSoft,
   });
 
-  static const light = BicoTokens(
+  static const light = BiccoTokens(
     green: Color(0xFF16A34A),
     greenDark: Color(0xFF15803D),
     greenSoft: Color(0xFFDCFCE7),
@@ -59,7 +59,7 @@ class BicoTokens {
     redSoft: Color(0xFFFEE2E2),
   );
 
-  static const dark = BicoTokens(
+  static const dark = BiccoTokens(
     green: Color(0xFF22C55E),
     greenDark: Color(0xFF16A34A),
     greenSoft: Color(0x2622C55E),
@@ -79,7 +79,7 @@ class BicoTokens {
     redSoft: Color(0x2EDC2626),
   );
 
-  BicoTokens copyWith({
+  BiccoTokens copyWith({
     Color? green,
     Color? greenDark,
     Color? greenSoft,
@@ -98,7 +98,7 @@ class BicoTokens {
     Color? red,
     Color? redSoft,
   }) {
-    return BicoTokens(
+    return BiccoTokens(
       green: green ?? this.green,
       greenDark: greenDark ?? this.greenDark,
       greenSoft: greenSoft ?? this.greenSoft,
