@@ -189,13 +189,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: BicoButton(
                       variant: BtnVariant.secondary,
                       full: true,
-                      onPressed: () {},
+                      onPressed: () => context.read<BicoNotifier>().signInWithFacebook(),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _AppleIcon(),
+                          _FacebookIcon(),
                           const SizedBox(width: 8),
-                          const Text('Apple'),
+                          const Text('Facebook'),
                         ],
                       ),
                     ),
@@ -285,58 +285,15 @@ class _GoogleIcon extends StatelessWidget {
   }
 }
 
-class _AppleIcon extends StatelessWidget {
+class _FacebookIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 18,
-      height: 18,
-      child: CustomPaint(painter: _ApplePainter()),
+    return const Icon(
+      Icons.facebook,
+      color: Color(0xFF1877F2),
+      size: 22,
     );
   }
-}
-
-class _ApplePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-
-    // ViewBox original do SVG: -52.01 0 560.035 560.035
-    // Largura total: ~560, Altura total: ~560
-    final double scale = size.width / 560.035;
-    canvas.scale(scale);
-    canvas.translate(52.01, 0); // Ajuste do offset X do viewBox
-
-    final Path path = Path();
-    // Corpo da maçã
-    path.moveTo(380.844, 297.529);
-    path.cubicTo(381.631, 382.281, 455.193, 410.484, 456.008, 410.843);
-    path.cubicTo(455.386, 412.831, 444.254, 451.034, 417.252, 490.495);
-    path.cubicTo(393.909, 524.612, 369.684, 558.602, 331.521, 559.306);
-    path.cubicTo(294.022, 559.997, 281.964, 537.07, 239.092, 537.07);
-    path.cubicTo(196.233, 537.07, 182.836, 558.603, 147.339, 559.998);
-    path.cubicTo(110.502, 561.393, 82.45, 523.107, 58.915, 489.115);
-    path.cubicTo(10.822, 419.585, -25.931, 292.64, 23.419, 206.95);
-    path.cubicTo(47.935, 164.396, 91.747, 137.449, 139.301, 136.758);
-    path.cubicTo(175.474, 136.068, 209.616, 161.094, 231.73, 161.094);
-    path.cubicTo(253.83, 161.094, 295.32, 130.998, 338.938, 135.418);
-    path.cubicTo(357.198, 136.178, 408.455, 142.794, 441.367, 190.97);
-    path.cubicTo(438.715, 192.614, 380.208, 226.678, 380.844, 297.529);
-    
-    // Folha
-    path.moveTo(310.369, 89.418);
-    path.cubicTo(329.926, 65.745, 343.089, 32.79, 339.498, 0);
-    path.cubicTo(311.308, 1.133, 277.22, 18.785, 257.0, 42.445);
-    path.cubicTo(238.879, 63.397, 223.009, 96.932, 227.291, 130.07);
-    path.cubicTo(258.712, 132.501, 290.811, 112.496, 310.369, 89.418);
-    
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _GooglePainter extends CustomPainter {

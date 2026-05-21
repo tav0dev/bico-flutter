@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/painting.dart';
 import 'package:googleapis/calendar/v3.dart' as google;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,16 +26,19 @@ class BicoNotifier extends ChangeNotifier {
     this.cardStyle = 'soft',
     this.tucoMode = 'placeholder',
   }) {
-    // Escutar mudanças de autenticação do Supabase
+    // Escuta mudanças de autenticação (Login/Logout)
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.session != null) {
         fetchGoogleEvents();
       } else {
         googleEvents = [];
-        notifyListeners();
       }
+      notifyListeners();
     });
   }
+
+  bool get isAuthenticated => Supabase.instance.client.auth.currentSession != null;
+  bool get isGoogleLoggedIn => isAuthenticated;
 
   BicoTokens get tokens {
     final base = isDark ? BicoTokens.dark : BicoTokens.light;
@@ -51,18 +54,23 @@ class BicoNotifier extends ChangeNotifier {
     return base;
   }
 
-  bool get isGoogleLoggedIn => Supabase.instance.client.auth.currentSession != null;
-
   Future<void> signInWithGoogle() async {
     try {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'com.example.bico-flutter://login-callback',
-        queryParams: {
-          'access_type': 'offline',
-          'prompt': 'consent',
-        },
-        scopes: 'https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.readonly',
+        redirectTo: kIsWeb ? null : 'com.example.bico_flutter://login-callback',
+      );
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> signInWithFacebook() async {
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.facebook,
+        redirectTo: kIsWeb ? null : 'com.example.bico_flutter://login-callback',
       );
     } catch (e) {
       errorMessage = e.toString();

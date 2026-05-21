@@ -16,8 +16,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
-    url: 'https://qcvwgsdhwihfaxkvdmur.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdndnc2Rod2loZmF4a3ZkbXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2Nzg5MTUsImV4cCI6MjA5NDI1NDkxNX0.yExEjPAnG21MitpejIkfHSdec_rQc8FTnQue6-BQNAY',
+    url: 'https://wzychmshebmznjfducug.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6eWNobXNoZWJtem5qZmR1Y3VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzOTkxNTksImV4cCI6MjA5NDk3NTE1OX0.MWz4GjhNuElOqLq27SfUfmlnNjAy8H78UDkICN_5rZw',
   );
 
   initializeDateFormatting('pt_BR', null).then((_) {
@@ -71,7 +71,7 @@ class BicoApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      initialRoute: '/login',
+      home: notifier.isAuthenticated ? const MainShell() : const LoginScreen(),
       routes: {
         '/login': (_) => const LoginScreen(),
         '/onboarding': (_) => const OnboardingScreen(),
