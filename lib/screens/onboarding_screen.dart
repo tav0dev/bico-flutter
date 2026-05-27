@@ -15,6 +15,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _step = 2;
   final int _total = 4;
   String _selected = 'Personal trainer';
+  bool _isLoading = false;
 
   static const _professions = [
     'Eletricista', 'Manicure', 'Personal trainer', 'Faxineira',
@@ -221,21 +222,36 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: BicoButton(
                       variant: BtnVariant.primary,
                       full: true,
-                      onPressed: () {
+                      onPressed: _isLoading ? () {} : () async {
                         if (_step < _total - 1) {
                           setState(() => _step++);
                         } else {
-                          Navigator.pushReplacementNamed(context, '/main');
+                          setState(() => _isLoading = true);
+                          try {
+                            await context.read<BicoNotifier>().completeOnboarding(_selected);
+                            // Não precisamos dar pushReplacement aqui. 
+                            // O provider vai notificar os listeners e o main.dart fará a troca.
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Erro ao finalizar cadastro: $e'))
+                              );
+                            }
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
+                          }
                         }
                       },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(_step < _total - 1 ? 'Continuar' : 'Começar'),
-                          const SizedBox(width: 8),
-                          const Icon(Icons.arrow_forward, size: 18),
-                        ],
-                      ),
+                      child: _isLoading 
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(_step < _total - 1 ? 'Continuar' : 'Começar'),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.arrow_forward, size: 18),
+                              ],
+                            ),
                     ),
                   ),
                 ],

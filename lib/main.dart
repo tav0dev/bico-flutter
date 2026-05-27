@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'providers/bico_provider.dart';
+import 'providers/servicos_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/main_shell.dart';
@@ -25,8 +26,11 @@ void main() async {
       statusBarColor: Colors.transparent,
     ));
     runApp(
-      ChangeNotifierProvider(
-        create: (_) => BicoNotifier(),
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => BicoNotifier()),
+          ChangeNotifierProvider(create: (_) => ServicosProvider()),
+        ],
         child: const BicoApp(),
       ),
     );
@@ -71,7 +75,9 @@ class BicoApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: notifier.isAuthenticated ? const MainShell() : const LoginScreen(),
+      home: notifier.isAuthenticated 
+          ? (notifier.needsOnboarding ? const OnboardingScreen() : const MainShell())
+          : const LoginScreen(),
       routes: {
         '/login': (_) => const LoginScreen(),
         '/onboarding': (_) => const OnboardingScreen(),

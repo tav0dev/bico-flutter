@@ -18,6 +18,9 @@ class BicoNotifier extends ChangeNotifier {
   bool isLoadingEvents = false;
   String? errorMessage;
 
+  bool _needsOnboarding = false;
+  bool get needsOnboarding => _needsOnboarding;
+
   BicoNotifier({
     this.isDark = true,
     this.accent = 'green',
@@ -27,14 +30,63 @@ class BicoNotifier extends ChangeNotifier {
     this.tucoMode = 'placeholder',
   }) {
     // Escuta mudanças de autenticação (Login/Logout)
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       if (data.session != null) {
+        await _checkProfile(data.session!.user);
         fetchGoogleEvents();
       } else {
         googleEvents = [];
+        _needsOnboarding = false;
+        notifyListeners();
       }
-      notifyListeners();
     });
+  }
+
+  Future<void> _checkProfile(User user) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final existing = await supabase
+          .from('prestadores')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+
+      _needsOnboarding = (existing == null);
+      notifyListeners();
+    } catch (e) {
+      print('Erro ao checar perfil: $e');
+      _needsOnboarding = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> completeOnboarding(String categoria) async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+      
+      final email = user.email ?? 'sem_email@bico.com';
+      final fallbackName = email.split('@').first;
+      final uniqueSlug = '$fallbackName-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+
+      await Supabase.instance.client.from('prestadores').insert({
+        'auth_user_id': user.id,
+        'email': email,
+        'telefone': '+5511999999999', // Dummy provisório
+        'nome_completo': user.userMetadata?['full_name'] ?? fallbackName,
+        'slug': uniqueSlug,
+        'categoria': categoria,
+        'cidade': 'São Paulo', // Dummy provisório
+        'estado': 'SP', // Dummy provisório
+        'foto_perfil_url': user.userMetadata?['avatar_url'],
+      });
+      
+      _needsOnboarding = false;
+      notifyListeners();
+    } catch (e) {
+      print('Erro ao completar onboarding: $e');
+      rethrow;
+    }
   }
 
   bool get isAuthenticated => Supabase.instance.client.auth.currentSession != null;
@@ -52,6 +104,31 @@ class BicoNotifier extends ChangeNotifier {
       );
     }
     return base;
+  }
+
+  Future<AuthResponse> signUpWithEmail(String email, String password, {String? fullName}) async {
+    try {
+      final response = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: password,
+        data: fullName != null ? {'full_name': fullName} : null,
+      );
+      return response;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<AuthResponse> signInWithEmail(String email, String password) async {
+    try {
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      return response;
+    } catch (e) {
+      rethrow;
+    }
   }
 
   Future<void> signInWithGoogle() async {

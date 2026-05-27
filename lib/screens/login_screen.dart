@@ -15,14 +15,74 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLogin = true;
   bool _showPassword = false;
+  bool _isLoading = false;
+  final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmPasswordCtrl = TextEditingController();
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+    final confirmPassword = _confirmPasswordCtrl.text;
+    
+    if (email.isEmpty || password.isEmpty || (!_isLogin && (name.isEmpty || confirmPassword.isEmpty))) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha todos os campos')));
+      return;
+    }
+
+    if (!_isLogin && password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('As senhas não coincidem!')));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final provider = context.read<BicoNotifier>();
+      if (_isLogin) {
+        await provider.signInWithEmail(email, password);
+      } else {
+        final res = await provider.signUpWithEmail(email, password, fullName: name);
+        if (res.session == null) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Quase lá! 🚀'),
+                content: const Text('Sua conta foi criada com sucesso. Enviamos um link de confirmação para o seu e-mail. Por favor, acesse sua caixa de entrada e clique no link para ativar sua conta e fazer o login.'),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      setState(() {
+                        _isLogin = true; // Volta para a aba de entrar
+                        _passwordCtrl.clear();
+                        _confirmPasswordCtrl.clear();
+                      });
+                    },
+                    child: const Text('Entendi'),
+                  )
+                ],
+              )
+            );
+          }
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: ${e.toString()}')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -88,6 +148,15 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 20),
 
               // Fields
+              if (!_isLogin) ...[
+                BicoField(
+                  label: 'Nome Completo',
+                  placeholder: 'João da Silva',
+                  controller: _nameCtrl,
+                  leadingIcon: Icons.person_outline,
+                ),
+                const SizedBox(height: 14),
+              ],
               BicoField(
                 label: 'E-mail',
                 placeholder: 'seu@email.com',
@@ -110,6 +179,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+              if (!_isLogin) ...[
+                const SizedBox(height: 14),
+                BicoField(
+                  label: 'Confirmar Senha',
+                  placeholder: '••••••••',
+                  controller: _confirmPasswordCtrl,
+                  obscureText: !_showPassword,
+                  leadingIcon: Icons.lock_outline,
+                ),
+              ],
               if (_isLogin) ...[
                 const SizedBox(height: 8),
                 Align(
@@ -138,8 +217,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 variant: BtnVariant.primary,
                 size: BtnSize.lg,
                 full: true,
-                onPressed: () => Navigator.pushReplacementNamed(context, '/onboarding'),
-                child: Text(_isLogin ? 'Entrar' : 'Criar minha conta'),
+                onPressed: _isLoading ? () {} : _submit,
+                child: _isLoading 
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(_isLogin ? 'Entrar' : 'Criar minha conta'),
               ),
               const SizedBox(height: 20),
 
