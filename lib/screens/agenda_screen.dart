@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../providers/bico_provider.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/bottom_nav.dart';
-import '../widgets/ai_sparkle.dart';
 
 class AgendaScreen extends StatefulWidget {
   final ValueChanged<NavTab>? onNavTap;
