@@ -90,10 +90,13 @@ class BicoButton extends StatelessWidget {
             ),
             child: IconTheme(
               data: IconThemeData(color: fg, size: size == BtnSize.sm ? 16 : 18),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [child],
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [child],
+                ),
               ),
             ),
           ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/bico_provider.dart';
 
-enum NavTab { home, agenda, inbox, clients }
+enum NavTab { home, agenda, services, clients }
 
 class BicoBottomNav extends StatelessWidget {
   final NavTab active;
@@ -18,7 +18,7 @@ class BicoBottomNav extends StatelessWidget {
     const items = [
       (id: NavTab.home, label: 'Início', icon: Icons.home_outlined, activeIcon: Icons.home),
       (id: NavTab.agenda, label: 'Agenda', icon: Icons.calendar_today_outlined, activeIcon: Icons.calendar_today),
-      (id: NavTab.inbox, label: 'Inbox', icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble),
+      (id: NavTab.services, label: 'Serviços', icon: Icons.work_outline, activeIcon: Icons.work),
       (id: NavTab.clients, label: 'Clientes', icon: Icons.people_outline, activeIcon: Icons.people),
     ];
 

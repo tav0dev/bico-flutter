@@ -6,12 +6,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'providers/bico_provider.dart';
 import 'providers/servicos_provider.dart';
+import 'providers/clientes_provider.dart';
+import 'providers/agendamentos_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/inbox_thread_screen.dart';
 import 'screens/services_screen.dart';
 import 'screens/create_post_screen.dart';
+import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +33,8 @@ void main() async {
         providers: [
           ChangeNotifierProvider(create: (_) => BicoNotifier()),
           ChangeNotifierProvider(create: (_) => ServicosProvider()),
+          ChangeNotifierProvider(create: (_) => ClientesProvider()),
+          ChangeNotifierProvider(create: (_) => AgendamentosProvider()),
         ],
         child: const BicoApp(),
       ),
@@ -85,6 +90,7 @@ class BicoApp extends StatelessWidget {
         '/inbox-thread': (_) => const InboxThreadScreen(),
         '/services': (_) => const ServicesScreen(),
         '/create-post': (_) => const CreatePostScreen(),
+        '/profile': (_) => const ProfileScreen(),
       },
     );
   }

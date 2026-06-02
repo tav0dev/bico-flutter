@@ -21,6 +21,8 @@ class BicoNotifier extends ChangeNotifier {
   bool _needsOnboarding = false;
   bool get needsOnboarding => _needsOnboarding;
 
+  Map<String, dynamic>? prestador;
+
   BicoNotifier({
     this.isDark = true,
     this.accent = 'green',
@@ -47,14 +49,21 @@ class BicoNotifier extends ChangeNotifier {
       final supabase = Supabase.instance.client;
       final existing = await supabase
           .from('prestadores')
-          .select('id')
+          .select('*')
           .eq('auth_user_id', user.id)
           .maybeSingle();
 
-      _needsOnboarding = (existing == null);
+      if (existing != null) {
+        prestador = existing;
+        _needsOnboarding = false;
+      } else {
+        prestador = null;
+        _needsOnboarding = true;
+      }
       notifyListeners();
     } catch (e) {
       print('Erro ao checar perfil: $e');
+      prestador = null;
       _needsOnboarding = false;
       notifyListeners();
     }
@@ -72,12 +81,12 @@ class BicoNotifier extends ChangeNotifier {
       await Supabase.instance.client.from('prestadores').insert({
         'auth_user_id': user.id,
         'email': email,
-        'telefone': '+5511999999999', // Dummy provisório
+        'telefone': null,
         'nome_completo': user.userMetadata?['full_name'] ?? fallbackName,
         'slug': uniqueSlug,
         'categoria': categoria,
-        'cidade': 'São Paulo', // Dummy provisório
-        'estado': 'SP', // Dummy provisório
+        'cidade': null,
+        'estado': null,
         'foto_perfil_url': user.userMetadata?['avatar_url'],
       });
       

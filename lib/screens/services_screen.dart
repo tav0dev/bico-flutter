@@ -11,7 +11,8 @@ import '../widgets/pill.dart';
 import '../widgets/toggle.dart';
 
 class ServicesScreen extends StatefulWidget {
-  const ServicesScreen({super.key});
+  final ValueChanged<NavTab>? onNavTap;
+  const ServicesScreen({super.key, this.onNavTap});
 
   @override
   State<ServicesScreen> createState() => _ServicesScreenState();
@@ -26,10 +27,15 @@ class _ServicesScreenState extends State<ServicesScreen> {
     });
   }
 
-  void _showAddServiceSheet(BuildContext context, dynamic tokens) {
-    final nomeController = TextEditingController();
-    final precoController = TextEditingController();
-    final duracaoController = TextEditingController();
+  void _showServiceSheet(BuildContext context, dynamic tokens, {Servico? servico}) {
+    final isEdit = servico != null;
+    final nomeController = TextEditingController(text: servico?.nome ?? '');
+    final precoController = TextEditingController(
+      text: isEdit ? (servico.precoCentavos / 100).toStringAsFixed(2).replaceAll('.', ',') : ''
+    );
+    final duracaoController = TextEditingController(
+      text: isEdit ? servico.duracaoMinutos.toString() : ''
+    );
 
     showModalBottomSheet(
       context: context,
@@ -48,7 +54,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Novo Serviço', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: tokens.text)),
+              Text(isEdit ? 'Editar Serviço' : 'Novo Serviço', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: tokens.text)),
               const SizedBox(height: 16),
               TextField(
                 controller: nomeController,
@@ -102,17 +108,32 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     if (nomeController.text.isEmpty || precoController.text.isEmpty || duracaoController.text.isEmpty) {
                       return;
                     }
-                    final novo = Servico(
-                      id: '',
-                      prestadorId: '', // Vai ser preenchido no Provider
-                      nome: nomeController.text,
-                      precoCentavos: (double.parse(precoController.text.replaceAll(',', '.')) * 100).toInt(),
-                      duracaoMinutos: int.parse(duracaoController.text),
-                      ativo: true,
-                      ordem: 0,
-                    );
-                    Navigator.pop(ctx);
-                    await context.read<ServicosProvider>().addServico(novo);
+                    if (isEdit) {
+                      final updated = Servico(
+                        id: servico.id,
+                        prestadorId: servico.prestadorId,
+                        nome: nomeController.text,
+                        descricao: servico.descricao,
+                        precoCentavos: (double.parse(precoController.text.replaceAll(',', '.')) * 100).toInt(),
+                        duracaoMinutos: int.parse(duracaoController.text),
+                        ativo: servico.ativo,
+                        ordem: servico.ordem,
+                      );
+                      Navigator.pop(ctx);
+                      await context.read<ServicosProvider>().updateServico(updated);
+                    } else {
+                      final novo = Servico(
+                        id: '',
+                        prestadorId: '', // Vai ser preenchido no Provider
+                        nome: nomeController.text,
+                        precoCentavos: (double.parse(precoController.text.replaceAll(',', '.')) * 100).toInt(),
+                        duracaoMinutos: int.parse(duracaoController.text),
+                        ativo: true,
+                        ordem: 0,
+                      );
+                      Navigator.pop(ctx);
+                      await context.read<ServicosProvider>().addServico(novo);
+                    }
                   },
                   child: const Text('Salvar', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
@@ -143,7 +164,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
               title: 'Serviços',
               large: true,
               trailing: GestureDetector(
-                onTap: () => _showAddServiceSheet(context, tokens),
+                onTap: () => _showServiceSheet(context, tokens),
                 child: Container(
                   width: 40,
                   height: 40,
@@ -190,8 +211,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
                             onDismissed: (direction) {
                               servicosProvider.deleteServico(s.id);
                             },
-                            child: BicoCard(
-                              padding: EdgeInsets.zero,
+                            child: GestureDetector(
+                              onTap: () => _showServiceSheet(context, tokens, servico: s),
+                              child: BicoCard(
+                                padding: EdgeInsets.zero,
                               child: Padding(
                                 padding: const EdgeInsets.all(14),
                                 child: Row(
@@ -263,13 +286,14 @@ class _ServicesScreenState extends State<ServicesScreen> {
                                 ),
                               ),
                             ),
+                            ),
                           ),
                         );
                       }),
 
                       // Add new button (dashed)
                       GestureDetector(
-                        onTap: () => _showAddServiceSheet(context, tokens),
+                        onTap: () => _showServiceSheet(context, tokens),
                         child: Container(
                           margin: const EdgeInsets.only(top: 4),
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -299,7 +323,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
           ),
           SafeArea(
             top: false,
-            child: BicoBottomNav(active: NavTab.home),
+            child: BicoBottomNav(active: NavTab.services, onTap: widget.onNavTap),
           ),
         ],
       ),

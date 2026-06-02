@@ -1,22 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../providers/bico_provider.dart';
+import '../providers/agendamentos_provider.dart';
 import '../widgets/bico_card.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/avatar.dart';
 import '../widgets/ai_sparkle.dart';
 import '../widgets/bico_button.dart';
+import '../widgets/agendamento_sheet.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   final ValueChanged<NavTab>? onNavTap;
 
   const DashboardScreen({super.key, this.onNavTap});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AgendamentosProvider>().loadAgendamentos();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final notifier = context.watch<BicoNotifier>();
     final tokens = notifier.tokens;
+    
+    final agendamentosProvider = context.watch<AgendamentosProvider>();
+    final hoje = agendamentosProvider.agendamentosHoje;
+    final proximo = agendamentosProvider.nextAgendamento;
+    
+    final concluidosHoje = hoje.where((a) => a.status == 'concluido').length;
+    final pendentesHoje = hoje.where((a) => a.status == 'pendente' || a.status == 'confirmado').length;
+    final faturamentoHoje = hoje.where((a) => a.status == 'concluido').fold(0.0, (sum, a) => sum + ((a.precoCobradoCentavos ?? 0) / 100));
 
     return Scaffold(
       backgroundColor: tokens.bg,
@@ -25,9 +49,12 @@ class DashboardScreen extends StatelessWidget {
           SafeArea(
             bottom: false,
             child: BicoTopBar(
-              title: 'Olá, Marina',
-              subtitle: 'Quarta, 6 de maio',
-              leading: const BicoAvatar(name: 'Marina Silva', size: 40),
+              title: 'Olá, ${notifier.prestador?['nome_completo']?.split(' ').first ?? 'Prestador'}',
+              subtitle: DateFormat('EEEE, d \'de\' MMMM', 'pt_BR').format(DateTime.now()),
+              leading: GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/profile'),
+                child: BicoAvatar(name: notifier.prestador?['nome_completo'] ?? 'Perfil', size: 40),
+              ),
               trailing: Stack(
                 children: [
                   IconButton(
@@ -80,7 +107,7 @@ class DashboardScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '3 atendimentos',
+                                  '${hoje.length} agendamentos',
                                   style: TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w700,
@@ -95,11 +122,11 @@ class DashboardScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  'previsão',
+                                  'faturado',
                                   style: TextStyle(fontSize: 12, color: tokens.textMuted, fontWeight: FontWeight.w500),
                                 ),
                                 Text(
-                                  'R\$ 380',
+                                  'R\$ ${faturamentoHoje.toStringAsFixed(2).replaceAll('.', ',')}',
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
@@ -117,9 +144,8 @@ class DashboardScreen extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                         child: Row(
                           children: [
-                            _Stat(label: 'Concluídos', value: '1', color: tokens.green),
-                            _Stat(label: 'Em andamento', value: '1', color: tokens.orange),
-                            _Stat(label: 'Pendente', value: '1', color: tokens.textMuted),
+                            _Stat(label: 'Concluídos', value: concluidosHoje.toString(), color: tokens.green),
+                            _Stat(label: 'Pendentes', value: pendentesHoje.toString(), color: tokens.orange),
                           ],
                         ),
                       ),
@@ -146,88 +172,97 @@ class DashboardScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => onNavTap?.call(NavTab.agenda),
-                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-                      child: Text(
-                        'Ver agenda',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: tokens.green,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
-                BicoCard(
-                  padding: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: tokens.greenSoft,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                '14:00',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: tokens.green,
-                                  letterSpacing: 0.04,
-                                ),
-                              ),
-                              Text(
-                                '1h30',
-                                style: TextStyle(fontSize: 10, color: tokens.green),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Treino funcional • Carla M.',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: tokens.text,
-                                  letterSpacing: -0.01,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  Icon(Icons.location_on_outlined, size: 13, color: tokens.textMuted),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Studio Vila Madalena',
-                                    style: TextStyle(fontSize: 13, color: tokens.textMuted),
+                if (agendamentosProvider.isLoading)
+                  Center(child: CircularProgressIndicator(color: tokens.green))
+                else if (proximo == null)
+                  BicoCard(
+                    child: Center(
+                      child: Text('Nenhum agendamento futuro.', style: TextStyle(color: tokens.textMuted)),
+                    ),
+                  )
+                else
+                  BicoCard(
+                    padding: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 56,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: tokens.greenSoft,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  DateFormat('HH:mm').format(proximo.dataHoraInicio),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: tokens.green,
+                                    letterSpacing: 0.04,
                                   ),
-                                ],
-                              ),
-                            ],
+                                ),
+                                Text(
+                                  '${proximo.dataHoraFim.difference(proximo.dataHoraInicio).inMinutes}m',
+                                  style: TextStyle(fontSize: 10, color: tokens.green),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Icon(Icons.chevron_right, size: 18, color: tokens.textMuted),
-                      ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${proximo.servicoNome ?? 'Serviço genérico'} • ${proximo.clienteNome?.split(' ').first ?? 'Cliente'}',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: tokens.text,
+                                    letterSpacing: -0.01,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_on_outlined, size: 13, color: tokens.textMuted),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'No local',
+                                      style: TextStyle(fontSize: 13, color: tokens.textMuted),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              agendamentosProvider.updateStatus(proximo.id, 'concluido');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: tokens.green,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.check, color: Colors.white, size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 const SizedBox(height: 16),
 
-                // AI suggestion card
+                // AI suggestion card (mocked still, but keeping style)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -265,7 +300,7 @@ class DashboardScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'João Pedro não confirmou o treino de amanhã. Quer que eu envie um lembrete?',
+                        'Sua agenda está livre amanhã de tarde. Quer que eu envie uma oferta para seus clientes inativos?',
                         style: TextStyle(
                           fontSize: 15,
                           color: tokens.text,
@@ -281,7 +316,7 @@ class DashboardScreen extends StatelessWidget {
                             variant: BtnVariant.ai,
                             size: BtnSize.sm,
                             onPressed: () {},
-                            child: const Text('Enviar lembrete'),
+                            child: const Text('Enviar oferta'),
                           ),
                           const SizedBox(width: 8),
                           BicoButton(
@@ -319,11 +354,17 @@ class DashboardScreen extends StatelessWidget {
                   mainAxisSpacing: 10,
                   childAspectRatio: 1.5,
                   children: [
-                    _QuickAction(icon: Icons.attach_money, label: 'Novo orçamento', tint: tokens.green),
-                    _QuickAction(icon: Icons.people_outline, label: 'Adicionar cliente', tint: tokens.purple),
+                    _QuickAction(icon: Icons.calendar_month, label: 'Novo agendamento', tint: tokens.green, onTap: () {
+                      AgendamentoSheet.show(context, tokens);
+                    }),
+                    _QuickAction(icon: Icons.people_outline, label: 'Ver clientes', tint: tokens.purple, onTap: () {
+                      widget.onNavTap?.call(NavTab.clients);
+                    }),
                     _QuickAction(icon: Icons.image_outlined, label: 'Criar post', tint: tokens.orange, ai: true,
                       onTap: () => Navigator.pushNamed(context, '/create-post')),
-                    _QuickAction(icon: Icons.calendar_today_outlined, label: 'Bloquear horário', tint: tokens.textMuted),
+                    _QuickAction(icon: Icons.add_circle_outline, label: 'Criar serviço', tint: tokens.textMuted, onTap: () {
+                      widget.onNavTap?.call(NavTab.services);
+                    }),
                   ],
                 ),
               ],
@@ -333,7 +374,7 @@ class DashboardScreen extends StatelessWidget {
             top: false,
             child: BicoBottomNav(
               active: NavTab.home,
-              onTap: onNavTap,
+              onTap: widget.onNavTap,
             ),
           ),
         ],
@@ -417,7 +458,7 @@ class _QuickAction extends StatelessWidget {
                   ),
                   child: Icon(icon, size: 18, color: tint),
                 ),
-                const SizedBox(height: 8),
+                const Spacer(),
                 Text(
                   label,
                   style: TextStyle(

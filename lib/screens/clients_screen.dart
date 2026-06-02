@@ -1,33 +1,168 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/bico_provider.dart';
+import '../providers/clientes_provider.dart';
+import '../models/cliente.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/avatar.dart';
-import '../widgets/pill.dart';
 
-class ClientsScreen extends StatelessWidget {
+class ClientsScreen extends StatefulWidget {
   final ValueChanged<NavTab>? onNavTap;
 
   const ClientsScreen({super.key, this.onNavTap});
 
-  static const _clients = [
-    (name: 'Carla Mendes', tag: 'Pacote', last: 'hoje', value: 'R\$ 750/mês', recent: true, isNew: false, paused: false),
-    (name: 'João Pedro', tag: 'Avulso', last: 'amanhã', value: '8 sessões', recent: false, isNew: false, paused: false),
-    (name: 'Lia Faria', tag: 'Pacote', last: 'ontem', value: 'R\$ 1.080/mês', recent: false, isNew: false, paused: false),
-    (name: 'Pedro Rocha', tag: 'Novo', last: 'há 3 dias', value: '—', recent: false, isNew: true, paused: false),
-    (name: 'Beatriz Lima', tag: 'Pacote', last: 'há 5 dias', value: 'R\$ 750/mês', recent: false, isNew: false, paused: false),
-    (name: 'Tomás Andrade', tag: 'Pausado', last: 'há 2 sem', value: '—', recent: false, isNew: false, paused: true),
-    (name: 'Renata Costa', tag: 'Avulso', last: 'há 1 mês', value: '3 sessões', recent: false, isNew: false, paused: false),
-  ];
+  @override
+  State<ClientsScreen> createState() => _ClientsScreenState();
+}
+
+class _ClientsScreenState extends State<ClientsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ClientesProvider>().loadClientes();
+    });
+  }
+
+  void _showClientSheet(BuildContext context, dynamic tokens, {Cliente? cliente}) {
+    final isEdit = cliente != null;
+    final nomeController = TextEditingController(text: cliente?.nome ?? '');
+    final telefoneController = TextEditingController(text: cliente?.telefone ?? '');
+    final emailController = TextEditingController(text: cliente?.email ?? '');
+    final obsController = TextEditingController(text: cliente?.observacoes ?? '');
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: tokens.bg,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 20, right: 20, top: 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(isEdit ? 'Editar Cliente' : 'Novo Cliente', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: tokens.text)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nomeController,
+                style: TextStyle(color: tokens.text),
+                decoration: InputDecoration(
+                  labelText: 'Nome completo',
+                  labelStyle: TextStyle(color: tokens.textMuted),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: telefoneController,
+                style: TextStyle(color: tokens.text),
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  labelText: 'Telefone (ex: 11999999999)',
+                  labelStyle: TextStyle(color: tokens.textMuted),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailController,
+                style: TextStyle(color: tokens.text),
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'E-mail (opcional)',
+                  labelStyle: TextStyle(color: tokens.textMuted),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: obsController,
+                style: TextStyle(color: tokens.text),
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Observações',
+                  labelStyle: TextStyle(color: tokens.textMuted),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: tokens.green,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () async {
+                    if (nomeController.text.isEmpty) return;
+
+                    String? rawPhone = telefoneController.text.trim();
+                    if (rawPhone.isEmpty) {
+                      rawPhone = null;
+                    } else {
+                      rawPhone = rawPhone.replaceAll(RegExp(r'[^\d+]'), '');
+                      if (!rawPhone.startsWith('+') && rawPhone.isNotEmpty) {
+                        rawPhone = '+55$rawPhone';
+                      }
+                    }
+
+                    String? rawEmail = emailController.text.trim();
+                    if (rawEmail.isEmpty) rawEmail = null;
+
+                    String? rawObs = obsController.text.trim();
+                    if (rawObs.isEmpty) rawObs = null;
+                    
+                    if (isEdit) {
+                      final updated = Cliente(
+                        id: cliente.id,
+                        prestadorId: cliente.prestadorId,
+                        nome: nomeController.text.trim(),
+                        telefone: rawPhone,
+                        email: rawEmail,
+                        observacoes: rawObs,
+                        fotoPerfilUrl: cliente.fotoPerfilUrl,
+                      );
+                      Navigator.pop(ctx);
+                      await context.read<ClientesProvider>().updateCliente(updated);
+                    } else {
+                      final novo = Cliente(
+                        id: '',
+                        prestadorId: '', // Preenchido no provider
+                        nome: nomeController.text.trim(),
+                        telefone: rawPhone,
+                        email: rawEmail,
+                        observacoes: rawObs,
+                      );
+                      Navigator.pop(ctx);
+                      await context.read<ClientesProvider>().addCliente(novo);
+                    }
+                  },
+                  child: const Text('Salvar', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.watch<BicoNotifier>().tokens;
-
-    final today = _clients.where((c) => c.recent).toList();
-    final thisWeek = _clients.where((c) => !c.recent && !c.paused).take(4).toList();
-    final inactive = _clients.where((c) => c.paused).toList();
+    final clientesProvider = context.watch<ClientesProvider>();
+    final clientes = clientesProvider.clientes;
+    final isLoading = clientesProvider.isLoading;
 
     return Scaffold(
       backgroundColor: tokens.bg,
@@ -38,14 +173,17 @@ class ClientsScreen extends StatelessWidget {
             child: BicoTopBar(
               title: 'Clientes',
               large: true,
-              trailing: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: tokens.green,
-                  borderRadius: BorderRadius.circular(12),
+              trailing: GestureDetector(
+                onTap: () => _showClientSheet(context, tokens),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: tokens.green,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 20),
                 ),
-                child: const Icon(Icons.add, color: Colors.white, size: 20),
               ),
             ),
           ),
@@ -70,189 +208,83 @@ class ClientsScreen extends StatelessWidget {
                       style: TextStyle(fontSize: 14, color: tokens.textMuted),
                     ),
                   ),
-                  Icon(Icons.tune, size: 16, color: tokens.text),
                 ],
               ),
             ),
           ),
 
-          // Stats row
-          SizedBox(
-            height: 75,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              children: [
-                _Stat2(value: '24', label: 'ativos', tint: tokens.green),
-                const SizedBox(width: 10),
-                _Stat2(value: '3', label: 'novos', tint: tokens.purple),
-                const SizedBox(width: 10),
-                _Stat2(value: 'R\$ 6.4k', label: 'recorrente', tint: tokens.orange),
-              ],
-            ),
-          ),
-
-          // Client groups
+          // Lista de Clientes
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.only(bottom: 8),
-              children: [
-                _ClientGroup(title: 'Hoje', clients: today, tokens: tokens),
-                _ClientGroup(title: 'Esta semana', clients: thisWeek, tokens: tokens),
-                _ClientGroup(title: 'Inativos', clients: inactive, tokens: tokens),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                  child: Text(
-                    '24 clientes no total',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: tokens.textFaint),
-                  ),
-                ),
-              ],
-            ),
+            child: isLoading
+                ? Center(child: CircularProgressIndicator(color: tokens.green))
+                : clientes.isEmpty
+                    ? Center(
+                        child: Text('Nenhum cliente cadastrado.', style: TextStyle(color: tokens.textMuted)),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        itemCount: clientes.length,
+                        itemBuilder: (ctx, i) {
+                          final c = clientes[i];
+                          return Dismissible(
+                            key: Key(c.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              decoration: BoxDecoration(color: tokens.red),
+                              child: const Icon(Icons.delete, color: Colors.white),
+                            ),
+                            onDismissed: (direction) {
+                              clientesProvider.deleteCliente(c.id);
+                            },
+                            child: GestureDetector(
+                              onTap: () => _showClientSheet(context, tokens, cliente: c),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  border: Border(bottom: BorderSide(color: tokens.borderSoft)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    BicoAvatar(name: c.nome, size: 42),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            c.nome,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: tokens.text,
+                                              letterSpacing: -0.005,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            c.telefone != null && c.telefone!.isNotEmpty ? c.telefone! : 'Sem telefone',
+                                            style: TextStyle(fontSize: 13, color: tokens.textMuted),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
           ),
 
           SafeArea(
             top: false,
-            child: BicoBottomNav(active: NavTab.clients, onTap: onNavTap),
+            child: BicoBottomNav(active: NavTab.clients, onTap: widget.onNavTap),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Stat2 extends StatelessWidget {
-  final String value;
-  final String label;
-  final Color tint;
-
-  const _Stat2({required this.value, required this.label, required this.tint});
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.watch<BicoNotifier>().tokens;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      constraints: const BoxConstraints(minWidth: 90),
-      decoration: BoxDecoration(
-        color: tokens.bgSoft,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: tokens.borderSoft),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: tint,
-              letterSpacing: -0.01,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: tokens.textMuted,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ClientGroup extends StatelessWidget {
-  final String title;
-  final List<dynamic> clients;
-  final dynamic tokens;
-
-  const _ClientGroup({required this.title, required this.clients, required this.tokens});
-
-  @override
-  Widget build(BuildContext context) {
-    if (clients.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-          child: Text(
-            title.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: tokens.textMuted,
-              letterSpacing: 0.06,
-            ),
-          ),
-        ),
-        ...clients.asMap().entries.map((entry) {
-          final i = entry.key;
-          final c = entry.value;
-          return Opacity(
-            opacity: c.paused ? 0.6 : 1.0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: i == 0 ? BorderSide(color: tokens.borderSoft) : BorderSide.none,
-                  bottom: BorderSide(color: tokens.borderSoft),
-                ),
-              ),
-              child: Row(
-                children: [
-                  BicoAvatar(name: c.name, size: 42),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              c.name,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: tokens.text,
-                                letterSpacing: -0.005,
-                              ),
-                            ),
-                            if (c.isNew) ...[
-                              const SizedBox(width: 6),
-                              const BicoPill(text: 'novo', color: 'purple', size: 'sm'),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${c.tag} • último contato ${c.last}',
-                          style: TextStyle(fontSize: 12, color: tokens.textMuted),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    c.value,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: tokens.text,
-                      letterSpacing: -0.005,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ],
     );
   }
 }

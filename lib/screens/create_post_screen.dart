@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../providers/bico_provider.dart';
+import '../providers/servicos_provider.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/ai_sparkle.dart';
 
@@ -13,27 +16,51 @@ class CreatePostScreen extends StatefulWidget {
 }
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
-  static const _fullCaption =
-      "Quer começar a treinar mas não sabe por onde? 💪\n\nMonte sua avaliação física comigo: a gente analisa postura, condicionamento e seus objetivos. Depois eu monto um plano feito pra sua rotina.\n\n📍 Vila Madalena · Online também\n👉 Reserva pelo link na bio";
-
-  String _typed = _fullCaption;
+  String _fullCaption = "Clique em Gerar para criar um post baseado nos seus serviços!";
+  String _typed = "Clique em Gerar para criar um post baseado nos seus serviços!";
   bool _generating = false;
   Timer? _timer;
   int _typedLen = 0;
 
-  final _hashtags = ['#personaltrainer', '#vilamadalena', '#treinofuncional', '#saúde'];
+  final _hashtags = ['#serviços', '#agendaaberta', '#novidade'];
   final _channelActive = [true, true, false]; // Instagram, WhatsApp Status, Facebook
 
   void _startGenerate() {
+    final servicosProvider = context.read<ServicosProvider>();
+    final servicos = servicosProvider.servicos.where((s) => s.ativo).toList();
+    final prestador = context.read<BicoNotifier>().prestador;
+
+    String text;
+    if (servicos.isEmpty) {
+      text = "Parece que você ainda não cadastrou nenhum serviço ativo! Vá na tela inicial, clique em 'Criar serviço' e depois volte aqui para eu criar posts incríveis para você. ✨";
+    } else {
+      servicos.shuffle();
+      final s = servicos.first;
+      final price = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format((s.precoCentavos ?? 0) / 100);
+      final hasPrice = (s.precoCentavos ?? 0) > 0;
+      
+      final templates = [
+        "Vocês pediram e a agenda está aberta! ✨\n\nEstou com horários disponíveis para: ${s.nome}.\n\n⏱️ Duração: ${s.duracaoMinutos} min\n${hasPrice ? '💳 Valor: $price\n' : ''}\nNão deixe para depois, os horários esgotam rápido. Me manda um direct ou acesse o link da bio para garantir o seu! 👇",
+        "Precisando de ${s.nome}? Deixa comigo! 💪\n\nTenho alguns horários livres essa semana para te atender com toda a qualidade que você merece.\n\n👉 Manda uma mensagem e vamos agendar!",
+        "Um lembrete rápido: ainda tenho vagas para ${s.nome} esta semana! 🚀\n\nSe você estava adiando, essa é a hora. Corre no link da bio para marcar seu horário antes que preencha tudo. 😉",
+      ];
+      
+      templates.shuffle();
+      text = templates.first;
+    }
+
+    _fullCaption = text;
     _timer?.cancel();
+    
     setState(() {
       _generating = true;
       _typed = '';
       _typedLen = 0;
     });
-    _timer = Timer.periodic(const Duration(milliseconds: 20), (t) {
-      final step = (1 + (DateTime.now().millisecondsSinceEpoch % 3)).clamp(1, 3).toInt();
-      _typedLen = (_typedLen + step + 1).clamp(0, _fullCaption.length);
+    
+    _timer = Timer.periodic(const Duration(milliseconds: 15), (t) {
+      final step = (1 + (DateTime.now().millisecondsSinceEpoch % 4)).clamp(1, 4).toInt();
+      _typedLen = (_typedLen + step).clamp(0, _fullCaption.length);
       if (_typedLen >= _fullCaption.length) {
         t.cancel();
         setState(() {
@@ -71,7 +98,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 constraints: const BoxConstraints(),
               ),
               trailing: GestureDetector(
-                onTap: () {},
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: _typed));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Texto copiado para a área de transferência!'))
+                  );
+                },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   decoration: BoxDecoration(
@@ -79,7 +111,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(
-                    'Publicar',
+                    'Copiar Texto',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -104,7 +136,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       ),
                       child: Stack(
                         children: [
-                          // Diagonal stripe pattern
                           ClipRRect(
                             borderRadius: BorderRadius.circular(14),
                             child: CustomPaint(
@@ -122,7 +153,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 Icon(Icons.image_outlined, size: 36, color: tokens.textFaint),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'foto do treino.jpg',
+                                  'foto ou vídeo.jpg',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: tokens.textMuted,
@@ -178,7 +209,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Tuco escreveu uma legenda baseada na sua foto e perfil',
+                            'Tuco pode criar uma legenda automática com base nos seus serviços cadastrados.',
                             style: TextStyle(
                               fontSize: 13,
                               color: tokens.text,
@@ -322,7 +353,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
                   // Channel chips
                   Text(
-                    'Publicar em',
+                    'Copiar para',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

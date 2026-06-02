@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/bico_provider.dart';
+import '../providers/agendamentos_provider.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/agendamento_sheet.dart';
 
 class AgendaScreen extends StatefulWidget {
   final ValueChanged<NavTab>? onNavTap;
@@ -23,7 +25,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
     _selectedDate = DateTime.now();
     _generateWeek(DateTime.now());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BicoNotifier>().fetchGoogleEvents();
+      context.read<AgendamentosProvider>().loadAgendamentos();
     });
   }
 
@@ -37,48 +39,35 @@ class _AgendaScreenState extends State<AgendaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final notifier = context.watch<BicoNotifier>();
-    final tokens = notifier.tokens;
+    final tokens = context.watch<BicoNotifier>().tokens;
+    final agendamentosProvider = context.watch<AgendamentosProvider>();
 
-    // LÓGICA DE FILTRAGEM ROBUSTA
-    final dayEvents = notifier.googleEvents.where((e) {
-      if (e.start?.dateTime != null) {
-        final local = e.start!.dateTime!.toLocal();
-        return local.day == _selectedDate.day && local.month == _selectedDate.month && local.year == _selectedDate.year;
-      } else if (e.start?.date != null) {
-        // Evento de dia inteiro: Comparar sem converter timezone
-        // Google retorna data de dia inteiro como meia-noite UTC do dia
-        final d = e.start!.date!;
-        return d.day == _selectedDate.day && d.month == _selectedDate.month && d.year == _selectedDate.year;
-      }
-      return false;
-    }).map((e) {
-      DateTime start;
-      DateTime end;
-      bool isAllDay = e.start?.dateTime == null;
-
-      if (isAllDay) {
-        start = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 8, 0);
-        end = start.add(const Duration(hours: 1));
-      } else {
-        start = e.start!.dateTime!.toLocal();
-        end = (e.end?.dateTime ?? start.add(const Duration(hours: 1))).toLocal();
-      }
+    // Filtrar os agendamentos do Supabase para o dia selecionado
+    final dayEvents = agendamentosProvider.agendamentos.where((a) {
+      final local = a.dataHoraInicio;
+      return local.day == _selectedDate.day && 
+             local.month == _selectedDate.month && 
+             local.year == _selectedDate.year && 
+             a.status != 'cancelado';
+    }).map((a) {
+      final start = a.dataHoraInicio;
+      final end = a.dataHoraFim;
+      
+      Color color;
+      if (a.status == 'concluido') color = tokens.green;
+      else if (a.status == 'confirmado') color = tokens.purple;
+      else color = tokens.orange; // Pendente
       
       return (
-        id: e.id ?? '',
+        id: a.id,
+        agendamento: a,
         time: DateFormat('HH:mm').format(start),
         start: start,
         dur: end.difference(start).inMinutes / 60.0,
-        title: e.summary ?? '(Sem título)',
-        color: tokens.green,
-        ai: e.description?.contains('AI') ?? false,
+        title: '${a.servicoNome ?? 'Serviço'} • ${a.clienteNome?.split(' ').first ?? 'Cliente'}',
+        color: color,
       );
     }).toList();
-
-    // Remover duplicatas por ID (caso o evento venha de múltiplas agendas compartilhadas)
-    final seen = <String>{};
-    dayEvents.retainWhere((e) => seen.add(e.id));
 
     return Scaffold(
       backgroundColor: tokens.bg,
@@ -89,41 +78,12 @@ class _AgendaScreenState extends State<AgendaScreen> {
             child: BicoTopBar(
               title: DateFormat('MMMM yyyy', 'pt_BR').format(_selectedDate).toUpperCase(),
               leading: IconButton(
-                onPressed: () => notifier.fetchGoogleEvents(),
-                icon: notifier.isLoadingEvents 
+                onPressed: () => agendamentosProvider.loadAgendamentos(),
+                icon: agendamentosProvider.isLoading 
                   ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: tokens.text))
                   : Icon(Icons.refresh, size: 20, color: tokens.text),
               ),
-              trailing: IconButton(
-                onPressed: () {
-                  if (notifier.isGoogleLoggedIn) {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: tokens.bg,
-                        title: Text('Conta Google', style: TextStyle(color: tokens.text)),
-                        content: Text('Deseja desconectar sua conta do Google Calendar?', style: TextStyle(color: tokens.text)),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('CANCELAR')),
-                          TextButton(
-                            onPressed: () {
-                              notifier.logoutGoogle();
-                              Navigator.pop(ctx);
-                            }, 
-                            child: Text('LOGOUT', style: TextStyle(color: tokens.red))
-                          ),
-                        ],
-                      ),
-                    );
-                  } else {
-                    notifier.fetchGoogleEvents();
-                  }
-                },
-                icon: Icon(
-                  notifier.isGoogleLoggedIn ? Icons.account_circle : Icons.login, 
-                  color: notifier.isGoogleLoggedIn ? tokens.green : tokens.textFaint
-                ),
-              ),
+              trailing: const SizedBox(width: 48), // Espaço vazio para alinhar o título ao centro
             ),
           ),
 
@@ -180,7 +140,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
                         )),
 
                         // Linha do Horário Atual
-                        if (_selectedDate.day == DateTime.now().day)
+                        if (_selectedDate.day == DateTime.now().day && _selectedDate.month == DateTime.now().month)
                           Positioned(
                             top: (DateTime.now().hour - 7) * _hourHeight + (DateTime.now().minute / 60.0) * _hourHeight,
                             left: 0, right: 0,
@@ -195,14 +155,19 @@ class _AgendaScreenState extends State<AgendaScreen> {
                           
                           return Positioned(
                             top: top, left: 4, right: 4, height: height < 20 ? 20 : height,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: e.color.withAlpha(30),
-                                border: Border(left: BorderSide(color: e.color, width: 4)),
-                                borderRadius: BorderRadius.circular(4),
+                            child: GestureDetector(
+                              onTap: () {
+                                AgendamentoSheet.show(context, tokens, agendamento: e.agendamento);
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: e.color.withAlpha(30),
+                                  border: Border(left: BorderSide(color: e.color, width: 4)),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                padding: const EdgeInsets.all(8),
+                                child: Text(e.title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: tokens.text), overflow: TextOverflow.ellipsis),
                               ),
-                              padding: const EdgeInsets.all(8),
-                              child: Text(e.title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: tokens.text), overflow: TextOverflow.ellipsis),
                             ),
                           );
                         }),
@@ -212,7 +177,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
                 ),
 
                 // MENSAGEM DE ERRO/AVISO (Aparece se não houver eventos)
-                if (!notifier.isLoadingEvents && dayEvents.isEmpty)
+                if (!agendamentosProvider.isLoading && dayEvents.isEmpty)
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.all(40),
@@ -222,9 +187,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
                           Icon(Icons.event_busy, size: 48, color: tokens.text.withAlpha(50)),
                           const SizedBox(height: 16),
                           Text(
-                            notifier.googleEvents.isEmpty 
-                                ? 'Nenhum evento carregado do Google.\nVerifique se você autorizou o login.' 
-                                : 'Nenhum compromisso para este dia.',
+                            'Nenhum agendamento para este dia.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: tokens.text.withAlpha(100)),
                           ),
@@ -235,7 +198,10 @@ class _AgendaScreenState extends State<AgendaScreen> {
               ],
             ),
           ),
-          BicoBottomNav(active: NavTab.agenda, onTap: widget.onNavTap),
+          SafeArea(
+            top: false,
+            child: BicoBottomNav(active: NavTab.agenda, onTap: widget.onNavTap),
+          ),
         ],
       ),
     );

@@ -81,6 +81,33 @@ class ServicosProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateServico(Servico servico) async {
+    try {
+      final data = servico.toJson();
+      // Remover prestador_id se estiver vazio para evitar erros, ou apenas confiar que já veio certo.
+      if (data['prestador_id'] == '') {
+        data.remove('prestador_id');
+      }
+      
+      final response = await _supabase
+          .from('servicos')
+          .update(data)
+          .eq('id', servico.id)
+          .select()
+          .single();
+          
+      final index = _servicos.indexWhere((s) => s.id == servico.id);
+      if (index != -1) {
+        _servicos[index] = Servico.fromJson(response);
+        notifyListeners();
+      }
+      return true;
+    } catch (e) {
+      print('Erro ao salvar edição do serviço: $e');
+      rethrow;
+    }
+  }
+
   Future<bool> deleteServico(String id) async {
     try {
       await _supabase
