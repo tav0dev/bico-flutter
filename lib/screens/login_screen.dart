@@ -20,6 +20,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
+  static final _specialCharPattern = RegExp(
+    r'''[!@#$%^&*()_+\-=\[\]{};':"\\|<>?,./`~]''',
+  );
 
   @override
   void dispose() {
@@ -35,14 +38,29 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final confirmPassword = _confirmPasswordCtrl.text;
-    
-    if (email.isEmpty || password.isEmpty || (!_isLogin && (name.isEmpty || confirmPassword.isEmpty))) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha todos os campos')));
+
+    if (email.isEmpty ||
+        password.isEmpty ||
+        (!_isLogin && (name.isEmpty || confirmPassword.isEmpty))) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Preencha todos os campos')));
       return;
     }
 
     if (!_isLogin && password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('As senhas não coincidem!')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('As senhas não coincidem!')));
+      return;
+    }
+
+    if (!_isLogin && !_isStrongPassword(password)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Use uma senha mais forte antes de criar sua conta.'),
+        ),
+      );
       return;
     }
 
@@ -52,14 +70,20 @@ class _LoginScreenState extends State<LoginScreen> {
       if (_isLogin) {
         await provider.signInWithEmail(email, password);
       } else {
-        final res = await provider.signUpWithEmail(email, password, fullName: name);
+        final res = await provider.signUpWithEmail(
+          email,
+          password,
+          fullName: name,
+        );
         if (res.session == null) {
           if (mounted) {
             showDialog(
               context: context,
               builder: (ctx) => AlertDialog(
                 title: const Text('Quase lá! 🚀'),
-                content: const Text('Sua conta foi criada com sucesso. Enviamos um link de confirmação para o seu e-mail. Por favor, acesse sua caixa de entrada e clique no link para ativar sua conta e fazer o login.'),
+                content: const Text(
+                  'Sua conta foi criada com sucesso. Enviamos um link de confirmação para o seu e-mail. Por favor, acesse sua caixa de entrada e clique no link para ativar sua conta e fazer o login.',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () {
@@ -71,18 +95,34 @@ class _LoginScreenState extends State<LoginScreen> {
                       });
                     },
                     child: const Text('Entendi'),
-                  )
+                  ),
                 ],
-              )
+              ),
             );
           }
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: ${e.toString()}')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro: ${e.toString()}')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  List<({String label, bool met})> _passwordChecks(String password) {
+    return [
+      (label: '8 caracteres ou mais', met: password.length >= 8),
+      (label: 'Letra maiuscula', met: RegExp(r'[A-Z]').hasMatch(password)),
+      (label: 'Letra minuscula', met: RegExp(r'[a-z]').hasMatch(password)),
+      (label: 'Numero', met: RegExp(r'[0-9]').hasMatch(password)),
+      (label: 'Simbolo especial', met: _specialCharPattern.hasMatch(password)),
+    ];
+  }
+
+  bool _isStrongPassword(String password) {
+    return _passwordChecks(password).every((check) => check.met);
   }
 
   @override
@@ -168,23 +208,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 label: 'Senha',
                 placeholder: '••••••••',
                 controller: _passwordCtrl,
+                onChanged: !_isLogin ? (_) => setState(() {}) : null,
                 obscureText: !_showPassword,
                 leadingIcon: Icons.lock_outline,
                 trailing: GestureDetector(
                   onTap: () => setState(() => _showPassword = !_showPassword),
                   child: Icon(
-                    _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                    _showPassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
                     size: 18,
                     color: tokens.textMuted,
                   ),
                 ),
               ),
               if (!_isLogin) ...[
+                const SizedBox(height: 8),
+                _PasswordStrengthChecklist(
+                  checks: _passwordChecks(_passwordCtrl.text),
+                  tokens: tokens,
+                ),
                 const SizedBox(height: 14),
                 BicoField(
                   label: 'Confirmar Senha',
                   placeholder: '••••••••',
                   controller: _confirmPasswordCtrl,
+                  onChanged: (_) => setState(() {}),
                   obscureText: !_showPassword,
                   leadingIcon: Icons.lock_outline,
                 ),
@@ -218,8 +267,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 size: BtnSize.lg,
                 full: true,
                 onPressed: _isLoading ? () {} : _submit,
-                child: _isLoading 
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : Text(_isLogin ? 'Entrar' : 'Criar minha conta'),
               ),
               const SizedBox(height: 20),
@@ -227,7 +283,9 @@ class _LoginScreenState extends State<LoginScreen> {
               // Divider
               Row(
                 children: [
-                  Expanded(child: Divider(color: tokens.borderSoft, thickness: 1)),
+                  Expanded(
+                    child: Divider(color: tokens.borderSoft, thickness: 1),
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Text(
@@ -239,7 +297,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  Expanded(child: Divider(color: tokens.borderSoft, thickness: 1)),
+                  Expanded(
+                    child: Divider(color: tokens.borderSoft, thickness: 1),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -270,7 +330,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: BicoButton(
                       variant: BtnVariant.secondary,
                       full: true,
-                      onPressed: () => context.read<BicoNotifier>().signInWithFacebook(),
+                      onPressed: () =>
+                          context.read<BicoNotifier>().signInWithFacebook(),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -297,12 +358,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     const TextSpan(text: 'Ao continuar você concorda com os '),
                     TextSpan(
                       text: 'Termos',
-                      style: TextStyle(color: tokens.text, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: tokens.text,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const TextSpan(text: ' e a '),
                     TextSpan(
                       text: 'Política de Privacidade',
-                      style: TextStyle(color: tokens.text, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: tokens.text,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const TextSpan(text: '.'),
                   ],
@@ -317,13 +384,59 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+class _PasswordStrengthChecklist extends StatelessWidget {
+  final List<({String label, bool met})> checks;
+  final dynamic tokens;
+
+  const _PasswordStrengthChecklist({
+    required this.checks,
+    required this.tokens,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: checks.map((check) {
+        final color = check.met ? tokens.green : tokens.textMuted;
+        return Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            children: [
+              Icon(
+                check.met ? Icons.check_circle : Icons.radio_button_unchecked,
+                size: 14,
+                color: color,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                check.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: check.met ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
 class _Tab extends StatelessWidget {
   final String label;
   final bool active;
   final dynamic tokens;
   final VoidCallback onTap;
 
-  const _Tab({required this.label, required this.active, required this.tokens, required this.onTap});
+  const _Tab({
+    required this.label,
+    required this.active,
+    required this.tokens,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -337,7 +450,13 @@ class _Tab extends StatelessWidget {
             color: active ? tokens.bg : Colors.transparent,
             borderRadius: BorderRadius.circular(9),
             boxShadow: active
-                ? [BoxShadow(color: const Color(0x0F0F172A), blurRadius: 2, offset: const Offset(0, 1))]
+                ? [
+                    BoxShadow(
+                      color: const Color(0x0F0F172A),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
                 : null,
           ),
           alignment: Alignment.center,
@@ -369,11 +488,7 @@ class _GoogleIcon extends StatelessWidget {
 class _FacebookIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return const Icon(
-      Icons.facebook,
-      color: Color(0xFF1877F2),
-      size: 22,
-    );
+    return const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 22);
   }
 }
 
@@ -381,7 +496,7 @@ class _GooglePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()..style = PaintingStyle.fill;
-    
+
     // ViewBox original do seu novo SVG: -3 0 262 262
     final double scale = size.width / 262;
     canvas.scale(scale);

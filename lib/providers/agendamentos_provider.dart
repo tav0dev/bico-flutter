@@ -4,7 +4,7 @@ import '../models/agendamento.dart';
 
 class AgendamentosProvider extends ChangeNotifier {
   final _supabase = Supabase.instance.client;
-  
+
   List<Agendamento> _agendamentos = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -25,15 +25,21 @@ class AgendamentosProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final now = DateTime.now();
+      final startRange = DateTime(now.year, 1, 1);
+      final endRange = DateTime(now.year + 1, 1, 1);
+
       // Fazemos o fetch já puxando o nome do cliente e do serviço via foreign key
       final response = await _supabase
           .from('agendamentos')
           .select('*, clientes(nome), servicos(nome)')
-          .isFilter('deleted_at', null)
-          .gte('data_hora_inicio', DateTime.now().subtract(const Duration(days: 1)).toUtc().toIso8601String())
-          .order('data_hora_inicio', ascending: true);
-          
-      _agendamentos = (response as List).map((data) => Agendamento.fromJson(data)).toList();
+          .gte('inicio', startRange.toUtc().toIso8601String())
+          .lt('inicio', endRange.toUtc().toIso8601String())
+          .order('inicio', ascending: true);
+
+      _agendamentos = (response as List)
+          .map((data) => Agendamento.fromJson(data))
+          .toList();
     } catch (e) {
       _errorMessage = 'Erro ao carregar agendamentos: $e';
     } finally {
@@ -52,9 +58,9 @@ class AgendamentosProvider extends ChangeNotifier {
           .select('id')
           .eq('auth_user_id', user.id)
           .single();
-          
+
       final prestadorId = prestadorRes['id'];
-      
+
       final dados = agendamento.toJson();
       dados['prestador_id'] = prestadorId;
 
@@ -67,13 +73,46 @@ class AgendamentosProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateAgendamento(Agendamento agendamento) async {
+    if (agendamento.id.isEmpty) return false;
+
+    try {
+      final dados = agendamento.toJson();
+      dados.remove('id');
+
+      await _supabase
+          .from('agendamentos')
+          .update(dados)
+          .eq('id', agendamento.id);
+
+      await loadAgendamentos();
+      return true;
+    } catch (e) {
+      print('Erro ao atualizar agendamento: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> deleteAgendamento(String id) async {
+    try {
+      await _supabase.from('agendamentos').delete().eq('id', id);
+
+      _agendamentos.removeWhere((a) => a.id == id);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      print('Erro ao deletar agendamento: $e');
+      rethrow;
+    }
+  }
+
   Future<bool> updateStatus(String id, String novoStatus) async {
     try {
       await _supabase
           .from('agendamentos')
           .update({'status': novoStatus})
           .eq('id', id);
-          
+
       final index = _agendamentos.indexWhere((a) => a.id == id);
       if (index != -1) {
         // Criar uma cópia mutável
@@ -103,9 +142,10 @@ class AgendamentosProvider extends ChangeNotifier {
   Agendamento? get nextAgendamento {
     final now = DateTime.now();
     try {
-      return _agendamentos.firstWhere((a) => 
-        (a.status == 'pendente' || a.status == 'confirmado') && 
-        a.dataHoraFim.isAfter(now)
+      return _agendamentos.firstWhere(
+        (a) =>
+            (a.status == 'pendente' || a.status == 'confirmado') &&
+            a.dataHoraFim.isAfter(now),
       );
     } catch (e) {
       return null;
@@ -115,11 +155,14 @@ class AgendamentosProvider extends ChangeNotifier {
   // Agendamentos de hoje
   List<Agendamento> get agendamentosHoje {
     final now = DateTime.now();
-    return _agendamentos.where((a) => 
-      a.dataHoraInicio.year == now.year &&
-      a.dataHoraInicio.month == now.month &&
-      a.dataHoraInicio.day == now.day &&
-      a.status != 'cancelado'
-    ).toList();
+    return _agendamentos
+        .where(
+          (a) =>
+              a.dataHoraInicio.year == now.year &&
+              a.dataHoraInicio.month == now.month &&
+              a.dataHoraInicio.day == now.day &&
+              a.status != 'cancelado',
+        )
+        .toList();
   }
 }

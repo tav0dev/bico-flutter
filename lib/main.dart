@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -21,13 +22,28 @@ void main() async {
 
   await Supabase.initialize(
     url: 'https://wzychmshebmznjfducug.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6eWNobXNoZWJtem5qZmR1Y3VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzOTkxNTksImV4cCI6MjA5NDk3NTE1OX0.MWz4GjhNuElOqLq27SfUfmlnNjAy8H78UDkICN_5rZw',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6eWNobXNoZWJtem5qZmR1Y3VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzOTkxNTksImV4cCI6MjA5NDk3NTE1OX0.MWz4GjhNuElOqLq27SfUfmlnNjAy8H78UDkICN_5rZw',
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+      detectSessionInUri: true,
+    ),
   );
 
+  if (kIsWeb &&
+      Uri.base.queryParameters.containsKey('code') &&
+      Supabase.instance.client.auth.currentSession == null) {
+    try {
+      await Supabase.instance.client.auth.getSessionFromUrl(Uri.base);
+    } catch (e) {
+      debugPrint('Erro ao finalizar login OAuth: $e');
+    }
+  }
+
   initializeDateFormatting('pt_BR', null).then((_) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
+    );
     runApp(
       MultiProvider(
         providers: [
@@ -67,11 +83,10 @@ class BicoApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: tokens.bg,
         textTheme: GoogleFonts.interTextTheme(
-          ThemeData(brightness: notifier.isDark ? Brightness.dark : Brightness.light).textTheme,
-        ).apply(
-          bodyColor: tokens.text,
-          displayColor: tokens.text,
-        ),
+          ThemeData(
+            brightness: notifier.isDark ? Brightness.dark : Brightness.light,
+          ).textTheme,
+        ).apply(bodyColor: tokens.text, displayColor: tokens.text),
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         appBarTheme: AppBarTheme(
@@ -80,8 +95,17 @@ class BicoApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: notifier.isAuthenticated 
-          ? (notifier.needsOnboarding ? const OnboardingScreen() : const MainShell())
+      home: notifier.isCheckingProfile
+          ? Scaffold(
+              backgroundColor: tokens.bg,
+              body: Center(
+                child: CircularProgressIndicator(color: tokens.green),
+              ),
+            )
+          : notifier.isAuthenticated
+          ? (notifier.needsOnboarding
+                ? const OnboardingScreen()
+                : const MainShell())
           : const LoginScreen(),
       routes: {
         '/login': (_) => const LoginScreen(),

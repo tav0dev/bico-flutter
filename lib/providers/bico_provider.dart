@@ -20,6 +20,8 @@ class BicoNotifier extends ChangeNotifier {
 
   bool _needsOnboarding = false;
   bool get needsOnboarding => _needsOnboarding;
+  bool _isCheckingProfile = true;
+  bool get isCheckingProfile => _isCheckingProfile;
 
   Map<String, dynamic>? prestador;
 
@@ -33,15 +35,24 @@ class BicoNotifier extends ChangeNotifier {
   }) {
     // Escuta mudanças de autenticação (Login/Logout)
     Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-      if (data.session != null) {
-        await _checkProfile(data.session!.user);
-        fetchGoogleEvents();
-      } else {
-        googleEvents = [];
-        _needsOnboarding = false;
-        notifyListeners();
-      }
+      await _handleSession(data.session);
     });
+    _handleSession(Supabase.instance.client.auth.currentSession);
+  }
+
+  Future<void> _handleSession(Session? session) async {
+    if (session != null) {
+      _isCheckingProfile = true;
+      notifyListeners();
+      await _checkProfile(session.user);
+      fetchGoogleEvents();
+    } else {
+      googleEvents = [];
+      prestador = null;
+      _needsOnboarding = false;
+      _isCheckingProfile = false;
+      notifyListeners();
+    }
   }
 
   Future<void> _checkProfile(User user) async {
@@ -60,37 +71,91 @@ class BicoNotifier extends ChangeNotifier {
         prestador = null;
         _needsOnboarding = true;
       }
+      _isCheckingProfile = false;
       notifyListeners();
     } catch (e) {
       print('Erro ao checar perfil: $e');
       prestador = null;
       _needsOnboarding = false;
+      _isCheckingProfile = false;
       notifyListeners();
     }
   }
 
-  Future<void> completeOnboarding(String categoria) async {
+  Future<void> completeOnboarding({
+    required String nomeCompleto,
+    required String telefone,
+    required String categoria,
+    required String cidade,
+    required String estado,
+    String? bio,
+    List<Map<String, dynamic>> initialServices = const [],
+  }) async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return;
-      
-      final email = user.email ?? 'sem_email@bico.com';
-      final fallbackName = email.split('@').first;
-      final uniqueSlug = '$fallbackName-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
 
-      await Supabase.instance.client.from('prestadores').insert({
+      final email = user.email ?? 'sem_email@bico.com';
+      final slugBase = _slugify(
+        nomeCompleto.isNotEmpty ? nomeCompleto : email.split('@').first,
+      );
+      final existing = await Supabase.instance.client
+          .from('prestadores')
+          .select('id, slug')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+
+      final dados = {
         'auth_user_id': user.id,
         'email': email,
-        'telefone': null,
-        'nome_completo': user.userMetadata?['full_name'] ?? fallbackName,
-        'slug': uniqueSlug,
+        'telefone': telefone,
+        'nome_completo': nomeCompleto,
+        'slug':
+            existing?['slug'] ??
+            '$slugBase-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
         'categoria': categoria,
-        'cidade': null,
-        'estado': null,
+        'bio': bio?.trim().isEmpty == true ? null : bio?.trim(),
+        'cidade': cidade,
+        'estado': estado,
         'foto_perfil_url': user.userMetadata?['avatar_url'],
-      });
-      
+      };
+
+      if (existing != null) {
+        prestador = await Supabase.instance.client
+            .from('prestadores')
+            .update(dados)
+            .eq('auth_user_id', user.id)
+            .select()
+            .single();
+      } else {
+        prestador = await Supabase.instance.client
+            .from('prestadores')
+            .insert(dados)
+            .select()
+            .single();
+      }
+
+      final prestadorId = prestador?['id'];
+      if (prestadorId != null &&
+          initialServices.isNotEmpty &&
+          existing == null) {
+        final serviceRows = initialServices.asMap().entries.map((entry) {
+          final service = entry.value;
+          return {
+            'prestador_id': prestadorId,
+            'nome': service['nome'],
+            'duracao_minutos': service['duracao_minutos'] ?? 60,
+            'preco_centavos': service['preco_centavos'] ?? 0,
+            'ativo': service['ativo'] ?? true,
+            'ordem': entry.key,
+          };
+        }).toList();
+
+        await Supabase.instance.client.from('servicos').insert(serviceRows);
+      }
+
       _needsOnboarding = false;
+      _isCheckingProfile = false;
       notifyListeners();
     } catch (e) {
       print('Erro ao completar onboarding: $e');
@@ -98,8 +163,18 @@ class BicoNotifier extends ChangeNotifier {
     }
   }
 
-  bool get isAuthenticated => Supabase.instance.client.auth.currentSession != null;
+  String _slugify(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+  }
+
+  bool get isAuthenticated =>
+      Supabase.instance.client.auth.currentSession != null;
   bool get isGoogleLoggedIn => isAuthenticated;
+  bool get hasGoogleCalendarToken =>
+      Supabase.instance.client.auth.currentSession?.providerToken != null;
 
   BicoTokens get tokens {
     final base = isDark ? BicoTokens.dark : BicoTokens.light;
@@ -115,7 +190,11 @@ class BicoNotifier extends ChangeNotifier {
     return base;
   }
 
-  Future<AuthResponse> signUpWithEmail(String email, String password, {String? fullName}) async {
+  Future<AuthResponse> signUpWithEmail(
+    String email,
+    String password, {
+    String? fullName,
+  }) async {
     try {
       final response = await Supabase.instance.client.auth.signUp(
         email: email,
@@ -145,6 +224,9 @@ class BicoNotifier extends ChangeNotifier {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: kIsWeb ? null : 'com.example.bico_flutter://login-callback',
+        scopes:
+            'openid email profile https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly',
+        queryParams: {'prompt': 'consent'},
       );
     } catch (e) {
       errorMessage = e.toString();
@@ -175,7 +257,9 @@ class BicoNotifier extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     try {
-      googleEvents = await _calendarService.getEventsWithToken(session.providerToken!);
+      googleEvents = await _calendarService.getEventsWithToken(
+        session.providerToken!,
+      );
       if (googleEvents.isEmpty) {
         print('Bico: Nenhum evento retornado do Google.');
       }
@@ -200,6 +284,7 @@ class BicoNotifier extends ChangeNotifier {
     isDark = v;
     notifyListeners();
   }
+
   void setAccent(String v) {
     accent = v;
     notifyListeners();

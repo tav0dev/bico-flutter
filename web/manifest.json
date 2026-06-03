@@ -1,11 +1,11 @@
 {
-    "name": "bico_flutter",
-    "short_name": "bico_flutter",
+    "name": "Bico",
+    "short_name": "Bico",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Bico: O assistente inteligente para o seu corre.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

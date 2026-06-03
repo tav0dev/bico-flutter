@@ -1,12 +1,12 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import '../models/servico.dart';
 import '../providers/bico_provider.dart';
 import '../providers/servicos_provider.dart';
-import '../widgets/top_bar.dart';
+import '../services/openai_marketing_service.dart';
 import '../widgets/ai_sparkle.dart';
+import '../widgets/top_bar.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -16,73 +16,155 @@ class CreatePostScreen extends StatefulWidget {
 }
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
-  String _fullCaption = "Clique em Gerar para criar um post baseado nos seus serviços!";
-  String _typed = "Clique em Gerar para criar um post baseado nos seus serviços!";
-  bool _generating = false;
-  Timer? _timer;
-  int _typedLen = 0;
+  final _ai = OpenAIMarketingService();
+  final _audienceController = TextEditingController();
 
-  final _hashtags = ['#serviços', '#agendaaberta', '#novidade'];
-  final _channelActive = [true, true, false]; // Instagram, WhatsApp Status, Facebook
+  Servico? _selectedService;
+  String _goal = 'Abrir horarios na agenda';
+  String _tone = 'Simples e profissional';
+  String _caption =
+      'Escolha um servico e clique em Gerar com IA para criar uma divulgacao mais forte.';
+  String _imagePrompt =
+      'Post quadrado profissional para divulgar um prestador de servicos local.';
+  List<String> _hashtags = const ['#servicos', '#agendaaberta', '#bico'];
+  List<String> _visualTips = const [
+    'Use uma foto clara do servico ou do resultado.',
+    'Deixe a chamada principal bem curta.',
+    'Mostre como a pessoa pode agendar.',
+  ];
+  final _channelActive = [true, true, false, false];
+  Uint8List? _generatedImage;
+  bool _generatingText = false;
+  bool _generatingImage = false;
+  bool _boosting = false;
+  bool _didInitializeService = false;
 
-  void _startGenerate() {
-    final servicosProvider = context.read<ServicosProvider>();
-    final servicos = servicosProvider.servicos.where((s) => s.ativo).toList();
-    final prestador = context.read<BicoNotifier>().prestador;
+  static const _goals = [
+    'Abrir horarios na agenda',
+    'Vender pacote promocional',
+    'Divulgar novo servico',
+    'Trazer clientes de volta',
+    'Pedir indicacoes',
+  ];
 
-    String text;
-    if (servicos.isEmpty) {
-      text = "Parece que você ainda não cadastrou nenhum serviço ativo! Vá na tela inicial, clique em 'Criar serviço' e depois volte aqui para eu criar posts incríveis para você. ✨";
-    } else {
-      servicos.shuffle();
-      final s = servicos.first;
-      final price = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format((s.precoCentavos ?? 0) / 100);
-      final hasPrice = (s.precoCentavos ?? 0) > 0;
-      
-      final templates = [
-        "Vocês pediram e a agenda está aberta! ✨\n\nEstou com horários disponíveis para: ${s.nome}.\n\n⏱️ Duração: ${s.duracaoMinutos} min\n${hasPrice ? '💳 Valor: $price\n' : ''}\nNão deixe para depois, os horários esgotam rápido. Me manda um direct ou acesse o link da bio para garantir o seu! 👇",
-        "Precisando de ${s.nome}? Deixa comigo! 💪\n\nTenho alguns horários livres essa semana para te atender com toda a qualidade que você merece.\n\n👉 Manda uma mensagem e vamos agendar!",
-        "Um lembrete rápido: ainda tenho vagas para ${s.nome} esta semana! 🚀\n\nSe você estava adiando, essa é a hora. Corre no link da bio para marcar seu horário antes que preencha tudo. 😉",
-      ];
-      
-      templates.shuffle();
-      text = templates.first;
-    }
+  static const _tones = [
+    'Simples e profissional',
+    'Amigavel e proximo',
+    'Promocional direto',
+    'Premium e cuidadoso',
+  ];
 
-    _fullCaption = text;
-    _timer?.cancel();
-    
-    setState(() {
-      _generating = true;
-      _typed = '';
-      _typedLen = 0;
-    });
-    
-    _timer = Timer.periodic(const Duration(milliseconds: 15), (t) {
-      final step = (1 + (DateTime.now().millisecondsSinceEpoch % 4)).clamp(1, 4).toInt();
-      _typedLen = (_typedLen + step).clamp(0, _fullCaption.length);
-      if (_typedLen >= _fullCaption.length) {
-        t.cancel();
-        setState(() {
-          _typed = _fullCaption;
-          _generating = false;
-        });
-      } else {
-        setState(() => _typed = _fullCaption.substring(0, _typedLen));
-      }
+  static const _channels = [
+    'Instagram',
+    'WhatsApp Status',
+    'Facebook',
+    'Email',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ServicosProvider>().loadServicos();
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _audienceController.dispose();
     super.dispose();
+  }
+
+  Future<void> _generateText() async {
+    final notifier = context.read<BicoNotifier>();
+    final channels = _selectedChannels();
+
+    setState(() => _generatingText = true);
+    try {
+      final result = await _ai.generatePost(
+        prestador: notifier.prestador,
+        servico: _selectedService,
+        goal: _goal,
+        tone: _tone,
+        audience: _audienceController.text,
+        channels: channels,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _caption = result.caption;
+        _hashtags = result.hashtags.isEmpty ? _hashtags : result.hashtags;
+        _imagePrompt = result.imagePrompt.isEmpty
+            ? _imagePrompt
+            : result.imagePrompt;
+        _visualTips = result.visualTips.isEmpty
+            ? _visualTips
+            : result.visualTips;
+      });
+
+      if (!_ai.isConfigured) {
+        _toast('IA ainda nao configurada. Usei uma sugestao local.');
+      } else if (_ai.isDirectBrowserMode) {
+        _toast(
+          'Modo dev: a chamada direta no navegador nao e segura para producao.',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _toast('Nao consegui gerar com IA: $e');
+    } finally {
+      if (mounted) setState(() => _generatingText = false);
+    }
+  }
+
+  Future<void> _generateImage() async {
+    setState(() => _generatingImage = true);
+    try {
+      final bytes = await _ai.generateImage(_imagePrompt);
+      if (!mounted) return;
+      if (bytes == null) {
+        _toast(
+          'Configure a IA para gerar a imagem. O prompt visual ja esta pronto.',
+        );
+      } else {
+        setState(() => _generatedImage = bytes);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _toast('Nao consegui melhorar a imagem: $e');
+    } finally {
+      if (mounted) setState(() => _generatingImage = false);
+    }
+  }
+
+  Future<void> _boostPost() async {
+    setState(() => _boosting = true);
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    setState(() => _boosting = false);
+    _toast('Turbinar post: fluxo de impulsionamento em breve.');
   }
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.watch<BicoNotifier>().tokens;
-    final channels = ['Instagram', 'WhatsApp Status', 'Facebook'];
+    final notifier = context.watch<BicoNotifier>();
+    final services = context
+        .watch<ServicosProvider>()
+        .servicos
+        .where((service) => service.ativo && service.id.isNotEmpty)
+        .toList();
+    final seenServiceIds = <String>{};
+    services.removeWhere((service) => !seenServiceIds.add(service.id));
+
+    if (_selectedService != null &&
+        !services.any((service) => service.id == _selectedService!.id)) {
+      _selectedService = null;
+    }
+    if (!_didInitializeService && services.isNotEmpty) {
+      _selectedService = services.first;
+      _didInitializeService = true;
+    }
 
     return Scaffold(
       backgroundColor: tokens.bg,
@@ -90,320 +172,42 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         child: Column(
           children: [
             BicoTopBar(
-              title: 'Criar post',
+              title: 'Divulgar',
+              subtitle: 'Crie texto e imagem com base no seu servico',
               leading: IconButton(
+                tooltip: 'Fechar',
                 onPressed: () => Navigator.pop(context),
                 icon: Icon(Icons.close, size: 22, color: tokens.text),
-                padding: const EdgeInsets.all(4),
-                constraints: const BoxConstraints(),
               ),
-              trailing: GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: _typed));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Texto copiado para a área de transferência!'))
-                  );
+              trailing: TextButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _postText()));
+                  _toast('Texto copiado.');
                 },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: tokens.green,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    'Copiar Texto',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+                icon: Icon(Icons.copy, size: 16, color: tokens.green),
+                label: Text('Copiar', style: TextStyle(color: tokens.green)),
               ),
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
                 children: [
-                  // Photo placeholder
-                  AspectRatio(
-                    aspectRatio: 4 / 5,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: tokens.bgSoft,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: tokens.border),
-                      ),
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: CustomPaint(
-                              painter: _StripePainter(
-                                color1: tokens.bgSoft,
-                                color2: tokens.borderSoft,
-                              ),
-                              size: Size.infinite,
-                            ),
-                          ),
-                          Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.image_outlined, size: 36, color: tokens.textFaint),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'foto ou vídeo.jpg',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: tokens.textMuted,
-                                    fontWeight: FontWeight.w500,
-                                    fontFamily: 'monospace',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 12,
-                            right: 12,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xD90F172A),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Icon(Icons.edit_outlined, size: 14, color: Colors.white),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Trocar',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  if (!_ai.isConfigured) _setupNotice(tokens),
+                  _imagePreview(tokens),
                   const SizedBox(height: 14),
-
-                  // AI generate row
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: tokens.orangeSoft,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const AISparkle(size: 14),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Tuco pode criar uma legenda automática com base nos seus serviços cadastrados.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: tokens.text,
-                              fontWeight: FontWeight.w500,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: _startGenerate,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                            decoration: BoxDecoration(
-                              color: tokens.orange,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.refresh, size: 13, color: Colors.white),
-                                SizedBox(width: 5),
-                                Text(
-                                  'Gerar',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _briefing(tokens, services, notifier.prestador),
                   const SizedBox(height: 14),
-
-                  // Caption
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Legenda',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: tokens.text,
-                        ),
-                      ),
-                      Text(
-                        '${_typed.length}/2200',
-                        style: TextStyle(fontSize: 12, color: tokens.textFaint),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    constraints: const BoxConstraints(minHeight: 120),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: tokens.bgSoft,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: tokens.border),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _typed,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: tokens.text,
-                              height: 1.5,
-                              letterSpacing: -0.005,
-                            ),
-                          ),
-                        ),
-                        if (_generating)
-                          _BlinkingCursor(color: tokens.orange),
-                      ],
-                    ),
-                  ),
+                  _aiActions(tokens),
                   const SizedBox(height: 14),
-
-                  // Hashtags
-                  Row(
-                    children: [
-                      Text(
-                        'Hashtags',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: tokens.text,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const AISparkle(size: 11),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      ..._hashtags.map((h) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: tokens.purpleSoft,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          h,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: tokens.purple,
-                          ),
-                        ),
-                      )),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: tokens.border),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '+ adicionar',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: tokens.textMuted,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  _captionBox(tokens),
                   const SizedBox(height: 14),
-
-                  // Channel chips
-                  Text(
-                    'Copiar para',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: tokens.text,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: List.generate(channels.length, (i) {
-                      final active = _channelActive[i];
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(right: i < channels.length - 1 ? 8 : 0),
-                          child: GestureDetector(
-                            onTap: () => setState(() => _channelActive[i] = !_channelActive[i]),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: active ? tokens.greenSoft : tokens.bgSoft,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: active ? tokens.green : tokens.border,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  if (active) ...[
-                                    Icon(Icons.check, size: 13, color: tokens.green),
-                                    const SizedBox(width: 5),
-                                  ],
-                                  Flexible(
-                                    child: Text(
-                                      channels[i],
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: active ? tokens.green : tokens.textMuted,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
+                  _hashtagsBox(tokens),
+                  const SizedBox(height: 14),
+                  _visualTipsBox(tokens),
+                  const SizedBox(height: 14),
+                  _channelsBox(tokens),
+                  const SizedBox(height: 14),
+                  _boostBox(tokens),
                 ],
               ),
             ),
@@ -411,6 +215,684 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ),
       ),
     );
+  }
+
+  Widget _setupNotice(dynamic tokens) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: tokens.orangeSoft,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: tokens.orangeSoft),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.key_outlined, size: 18, color: tokens.orange),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'IA pronta, mas sem chave segura configurada. Use BICO_AI_ENDPOINT em producao ou OPENAI_API_KEY apenas em teste local.',
+                style: TextStyle(
+                  color: tokens.text,
+                  fontSize: 12.5,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _imagePreview(dynamic tokens) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        decoration: BoxDecoration(
+          color: tokens.bgSoft,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: tokens.border),
+        ),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _generatedImage == null
+                  ? CustomPaint(
+                      painter: _StripePainter(
+                        color1: tokens.bgSoft,
+                        color2: tokens.borderSoft,
+                      ),
+                      size: Size.infinite,
+                    )
+                  : Image.memory(
+                      _generatedImage!,
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+            if (_generatedImage == null)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_outlined,
+                        size: 36,
+                        color: tokens.textFaint,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Imagem sugerida por IA',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: tokens.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        _imagePrompt,
+                        textAlign: TextAlign.center,
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: tokens.textFaint),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: GestureDetector(
+                onTap: _generatingImage ? null : _generateImage,
+                child: Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xD90F172A),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: _generatingImage
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.image_outlined,
+                              size: 15,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Melhorar imagem',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _briefing(
+    dynamic tokens,
+    List<Servico> services,
+    Map<String, dynamic>? prestador,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.bgSoft,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.borderSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const AISparkle(size: 14),
+              const SizedBox(width: 8),
+              Text(
+                'Briefing da divulgacao',
+                style: TextStyle(
+                  color: tokens.text,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _miniInfo(
+            tokens,
+            'Prestador',
+            prestador?['nome_completo'] ?? prestador?['categoria'] ?? 'Perfil',
+          ),
+          const SizedBox(height: 10),
+          _dropdown<String?>(
+            tokens: tokens,
+            label: 'Servico',
+            value: _selectedService?.id,
+            items: [null, ...services.map((service) => service.id)],
+            labelFor: (serviceId) =>
+                serviceId == null
+                    ? 'Divulgacao geral'
+                    : _serviceById(services, serviceId)?.nome ?? 'Servico',
+            onChanged: (value) => setState(
+              () => _selectedService = _serviceById(services, value),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _dropdown<String>(
+            tokens: tokens,
+            label: 'Objetivo',
+            value: _goal,
+            items: _goals,
+            labelFor: (goal) => goal,
+            onChanged: (value) => setState(() => _goal = value ?? _goal),
+          ),
+          const SizedBox(height: 10),
+          _dropdown<String>(
+            tokens: tokens,
+            label: 'Tom',
+            value: _tone,
+            items: _tones,
+            labelFor: (tone) => tone,
+            onChanged: (value) => setState(() => _tone = value ?? _tone),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _audienceController,
+            style: TextStyle(color: tokens.text, fontSize: 14),
+            decoration: InputDecoration(
+              labelText: 'Publico ou detalhe opcional',
+              hintText: 'Ex: maes ocupadas, clientes antigos, zona sul...',
+              labelStyle: TextStyle(color: tokens.textMuted),
+              hintStyle: TextStyle(color: tokens.textFaint),
+              filled: true,
+              fillColor: tokens.bg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: tokens.borderSoft),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: tokens.borderSoft),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: tokens.green),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aiActions(dynamic tokens) {
+    return Row(
+      children: [
+        Expanded(
+          child: _actionButton(
+            tokens: tokens,
+            label: 'Gerar com IA',
+            icon: Icons.auto_awesome,
+            loading: _generatingText,
+            color: tokens.orange,
+            onTap: _generateText,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _actionButton(
+            tokens: tokens,
+            label: 'Melhorar imagem',
+            icon: Icons.image_outlined,
+            loading: _generatingImage,
+            color: tokens.green,
+            onTap: _generateImage,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _captionBox(dynamic tokens) {
+    return _panel(
+      tokens,
+      title: 'Legenda',
+      trailing: '${_caption.length}/2200',
+      child: Text(
+        _caption,
+        style: TextStyle(fontSize: 14, color: tokens.text, height: 1.45),
+      ),
+    );
+  }
+
+  Widget _hashtagsBox(dynamic tokens) {
+    return _panel(
+      tokens,
+      title: 'Hashtags',
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: _hashtags
+            .map(
+              (tag) => Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: tokens.purpleSoft,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  tag.startsWith('#') ? tag : '#$tag',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: tokens.purple,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _visualTipsBox(dynamic tokens) {
+    return _panel(
+      tokens,
+      title: 'Imagem',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _imagePrompt,
+            style: TextStyle(color: tokens.text, fontSize: 13.5, height: 1.35),
+          ),
+          const SizedBox(height: 10),
+          ..._visualTips.map(
+            (tip) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.check, size: 15, color: tokens.green),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      tip,
+                      style: TextStyle(color: tokens.textMuted, fontSize: 12.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _channelsBox(dynamic tokens) {
+    return _panel(
+      tokens,
+      title: 'Copiar para',
+      child: Row(
+        children: List.generate(_channels.length, (index) {
+          final active = _channelActive[index];
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: index < _channels.length - 1 ? 8 : 0,
+              ),
+              child: GestureDetector(
+                onTap: () => setState(() => _channelActive[index] = !active),
+                child: Container(
+                  height: 44,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: active ? tokens.greenSoft : tokens.bgSoft,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: active ? tokens.green : tokens.borderSoft,
+                    ),
+                  ),
+                  child: Text(
+                    _channels[index],
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: active ? tokens.green : tokens.textMuted,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _boostBox(dynamic tokens) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tokens.greenSoft,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.green.withAlpha(90)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: tokens.green,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.rocket_launch_outlined,
+              color: Colors.white,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Turbinar post',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: tokens.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Use depois para impulsionar a divulgacao nos canais conectados.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: tokens.textMuted,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _smallButton(
+            tokens: tokens,
+            label: 'Turbinar',
+            loading: _boosting,
+            onTap: _boostPost,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Servico? _serviceById(List<Servico> services, String? id) {
+    if (id == null) return null;
+    for (final service in services) {
+      if (service.id == id) return service;
+    }
+    return null;
+  }
+
+  Widget _panel(
+    dynamic tokens, {
+    required String title,
+    String? trailing,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.bgSoft,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.borderSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: tokens.text,
+                ),
+              ),
+              const Spacer(),
+              if (trailing != null)
+                Text(
+                  trailing,
+                  style: TextStyle(fontSize: 12, color: tokens.textFaint),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _dropdown<T>({
+    required dynamic tokens,
+    required String label,
+    required T value,
+    required List<T> items,
+    required String Function(T item) labelFor,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: tokens.textMuted,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: tokens.bg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: tokens.borderSoft),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isExpanded: true,
+              dropdownColor: tokens.bg,
+              style: TextStyle(color: tokens.text, fontSize: 14),
+              items: items
+                  .map(
+                    (item) => DropdownMenuItem<T>(
+                      value: item,
+                      child: Text(labelFor(item)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniInfo(dynamic tokens, String label, dynamic value) {
+    return Row(
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(
+            color: tokens.textMuted,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            (value ?? 'Nao informado').toString(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: tokens.text, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _actionButton({
+    required dynamic tokens,
+    required String label,
+    required IconData icon,
+    required bool loading,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: Container(
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: Colors.white, size: 17),
+                  const SizedBox(width: 7),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _smallButton({
+    required dynamic tokens,
+    required String label,
+    required bool loading,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: tokens.green,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: loading
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+      ),
+    );
+  }
+
+  List<String> _selectedChannels() {
+    final selected = <String>[];
+    for (var i = 0; i < _channels.length; i++) {
+      if (_channelActive[i]) selected.add(_channels[i]);
+    }
+    return selected.isEmpty ? ['Instagram'] : selected;
+  }
+
+  String _postText() {
+    return [
+      _caption,
+      if (_hashtags.isNotEmpty)
+        _hashtags.map((tag) => tag.startsWith('#') ? tag : '#$tag').join(' '),
+    ].join('\n\n');
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -424,7 +906,11 @@ class _StripePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color2;
     const stripeWidth = 10.0;
-    for (double x = -size.height; x < size.width + size.height; x += stripeWidth * 2) {
+    for (
+      double x = -size.height;
+      x < size.width + size.height;
+      x += stripeWidth * 2
+    ) {
       final path = Path()
         ..moveTo(x, 0)
         ..lineTo(x + stripeWidth, 0)
@@ -437,49 +923,4 @@ class _StripePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_StripePainter old) => old.color2 != color2;
-}
-
-class _BlinkingCursor extends StatefulWidget {
-  final Color color;
-
-  const _BlinkingCursor({required this.color});
-
-  @override
-  State<_BlinkingCursor> createState() => _BlinkingCursorState();
-}
-
-class _BlinkingCursorState extends State<_BlinkingCursor>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, child) => Opacity(
-        opacity: _ctrl.value < 0.5 ? 1.0 : 0.0,
-        child: Container(
-          width: 2,
-          height: 14,
-          color: widget.color,
-          margin: const EdgeInsets.only(left: 1, top: 2),
-        ),
-      ),
-    );
-  }
 }

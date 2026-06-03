@@ -42,8 +42,12 @@ class Agendamento {
       prestadorId: json['prestador_id'],
       clienteId: json['cliente_id'],
       servicoId: json['servico_id'],
-      dataHoraInicio: DateTime.parse(json['data_hora_inicio']).toLocal(),
-      dataHoraFim: DateTime.parse(json['data_hora_fim']).toLocal(),
+      dataHoraInicio: DateTime.parse(
+        json['data_hora_inicio'] ?? json['inicio'],
+      ).toLocal(),
+      dataHoraFim: DateTime.parse(
+        json['data_hora_fim'] ?? json['fim'],
+      ).toLocal(),
       status: json['status'] ?? 'pendente',
       precoCobradoCentavos: json['preco_cobrado_centavos'],
       clienteNome: cName,
@@ -57,10 +61,9 @@ class Agendamento {
       'prestador_id': prestadorId,
       'cliente_id': clienteId,
       'servico_id': servicoId,
-      'data_hora_inicio': dataHoraInicio.toUtc().toIso8601String(),
-      'data_hora_fim': dataHoraFim.toUtc().toIso8601String(),
+      'inicio': dataHoraInicio.toUtc().toIso8601String(),
+      'fim': dataHoraFim.toUtc().toIso8601String(),
       'status': status,
-      if (precoCobradoCentavos != null) 'preco_cobrado_centavos': precoCobradoCentavos,
     };
   }
 }
